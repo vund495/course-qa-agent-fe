@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { TicketCitations } from './ticket-citations';
 import { TicketsInboxLayout } from "@/components/shared/TicketsInboxLayout";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,12 @@ import {
   type TicketCounts,
   type TicketList,
 } from "./api";
-import { formatTicketDate, TicketStatusBadge, ArchivedClassBadge } from "./ticket-status-badge";
+import {
+  ArchivedClassBadge,
+  formatTicketDate,
+  getTicketStatusTheme,
+  TicketStatusBadge,
+} from "./ticket-status-badge";
 
 const FILTERS = [
   { id: "OPEN", label: "Open" },
@@ -292,6 +298,11 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
               {ticket.class_status === "ARCHIVED" ? " · Archived" : ""} ·{" "}
               {ticket.replies.length} {ticket.replies.length === 1 ? "message" : "messages"}
             </span>
+            {ticket.escalated_to_name && (
+              <span className="mt-0.5 text-[11px] font-semibold text-amber-700">
+                Escalated to {ticket.escalated_to_name}
+              </span>
+            )}
           </button>
         ))
       )}
@@ -350,7 +361,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
         subtitle="Student questions for your assigned classes. Newest first."
         titleBadge={
           !loading && !error && data ? (
-            <span className="text-xs text-[#6F6F6F]">
+            <span className="text-xs text-[#DEE8F2]">
               {data.total} {data.total === 1 ? "ticket" : "tickets"}
             </span>
           ) : undefined
@@ -358,7 +369,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
         headerActions={
           <label
             htmlFor="inbox-class"
-            className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-[#5A5A5A]"
+            className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-[#DEE8F2]"
           >
             Class
             <AppSelect
@@ -373,12 +384,12 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
               placeholder="All assigned classes"
               aria-label="Filter tickets by class"
               size="sm"
-              triggerClassName="w-[380px] max-w-full"
-              contentClassName="min-w-[340px]"
+              triggerClassName="w-[520px] max-w-full"
+              contentClassName="w-[var(--radix-select-trigger-width)] min-w-0"
               renderValue={(option) =>
                 option ? (
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{option.label}</span>
+                    <span className="whitespace-nowrap">{option.label}</span>
                     {option.description ? (
                       <span className="shrink-0 text-[11px] font-normal text-[#6F6F6F]">
                         {option.description}
@@ -405,7 +416,12 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
         rightDetailContent={
           selected ? (
             <article className="flex h-full min-h-0 flex-col">
-              <header className="border-b border-[#E5E5E5] bg-[#FAFAFA] px-5 py-4">
+              <header
+                className={cn(
+                  "border-b px-5 py-4",
+                  getTicketStatusTheme(selected.status).headerClassName,
+                )}
+              >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   <TicketStatusBadge status={selected.status} />
                   <span className="text-xs text-[#5A5A5A]">
@@ -417,12 +433,30 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                     {formatTicketDate(selected.created_at)}
                   </time>
                 </div>
-                <h2 className="mt-2 text-lg font-semibold leading-snug text-[#111111]">
+                <h2
+                  className={cn(
+                    "mt-2 text-lg font-semibold leading-snug",
+                    getTicketStatusTheme(selected.status).titleClassName,
+                  )}
+                >
                   {selected.question}
                 </h2>
                 <p className="mt-1 break-all font-mono text-[10px] text-[#6F6F6F]">
                   Ticket {selected.id}
                 </p>
+                {selected.escalated_to_name && (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">
+                    Escalated to {selected.escalated_to_name}
+                    {selected.escalated_at && (
+                      <span className="font-normal text-[#6F6F6F]">
+                        {" · "}
+                        <time dateTime={selected.escalated_at}>
+                          {formatTicketDate(selected.escalated_at)}
+                        </time>
+                      </span>
+                    )}
+                  </p>
+                )}
               </header>
 
               <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
@@ -437,6 +471,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                   </section>
                 )}
 
+                <TicketCitations citations={selected.citations} />
                 {selected.agent_answer && (
                   <section className="space-y-1.5">
                     <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#6F6F6F]">
