@@ -28,6 +28,7 @@ import {
 } from "@/features/attendance/attendance-week-picker";
 import { AttendanceSheet } from "@/features/attendance/attendance-sheet";
 import { AttendanceScheduleManager } from "@/features/attendance/attendance-schedule-manager";
+import { TrainerDayStatus } from "@/features/attendance/trainer-day-status";
 import {
   AttendanceSummaryTable,
   getSemesterRange,
@@ -216,6 +217,9 @@ export default function TeacherAttendancePage() {
           </Button>
         </Alert>
       )}
+
+      {/* AI-158 — teacher availability for the day */}
+      <TrainerDayStatus classId={classId} />
 
       {/* Week Navigation Header */}
       <AttendanceWeekPicker

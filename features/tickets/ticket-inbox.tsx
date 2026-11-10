@@ -1,12 +1,19 @@
 "use client";
 
 import * as React from "react";
+import { CalendarPlus, ClipboardList } from "lucide-react";
 import { TicketCitations } from './ticket-citations';
 import { TicketsInboxLayout } from "@/components/shared/TicketsInboxLayout";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
 import { studentApi, type StudentClass } from "@/lib/student-api";
 import { cn } from "@/lib/utils";
+import { formatHandoverTime, handoverReasonLabel, isSystemReply } from "@/lib/handover-api";
+import { profileApi } from "@/features/profile/api";
+import { HandoverInbox } from "@/features/handover/handover-inbox";
+import { LeaveRequestModal } from "@/features/handover/leave-request-modal";
+import { LeaveRequestsModal } from "@/features/handover/leave-requests-modal";
+import { TicketOwnerBadge } from "./ticket-owner-badge";
 import {
   addTicketReply,
   getTicketCounts,
@@ -74,6 +81,24 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
       ? null
       : new URLSearchParams(window.location.search).get("ticket_id"),
   );
+  const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+  const [leaveModalOpen, setLeaveModalOpen] = React.useState(false);
+  const [leaveListOpen, setLeaveListOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    profileApi
+      .me()
+      .then((me) => {
+        if (!cancelled) setCurrentUserId(me.id);
+      })
+      .catch(() => {
+        // The owner badge falls back to the owner's name when /me is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -185,6 +210,8 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
         status: item.status,
       }));
   }, [counts, classes]);
+  const leaveClass =
+    classOptions.find((item) => item.id === classId) ?? classOptions[0] ?? null;
 
   const query = search.trim().toLowerCase();
   const visible = error
@@ -298,11 +325,11 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
               {ticket.class_status === "ARCHIVED" ? " · Archived" : ""} ·{" "}
               {ticket.replies.length} {ticket.replies.length === 1 ? "message" : "messages"}
             </span>
-            {ticket.escalated_to_name && (
-              <span className="mt-0.5 text-[11px] font-semibold text-amber-700">
-                Escalated to {ticket.escalated_to_name}
-              </span>
-            )}
+            <TicketOwnerBadge
+              ticket={ticket}
+              currentUserId={currentUserId}
+              className="mt-1"
+            />
           </button>
         ))
       )}
@@ -356,6 +383,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
           </Button>
         </div>
       )}
+      <HandoverInbox onAnswered={() => setRetry((value) => value + 1)} />
       <TicketsInboxLayout
         title="Class Tickets"
         subtitle="Student questions for your assigned classes. Newest first."
@@ -367,39 +395,60 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
           ) : undefined
         }
         headerActions={
-          <label
-            htmlFor="inbox-class"
-            className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-[#DEE8F2]"
-          >
-            Class
-            <AppSelect
-              id="inbox-class"
-              value={classSelectValue}
-              onValueChange={(value) => {
-                startRequest({ soft: true });
-                setClassId(value);
-                setPage(1);
-              }}
-              options={classSelectOptions}
-              placeholder="All assigned classes"
-              aria-label="Filter tickets by class"
+          <div className="flex flex-wrap items-center gap-2">
+            <label
+              htmlFor="inbox-class"
+              className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-[#DEE8F2]"
+            >
+              Class
+              <AppSelect
+                id="inbox-class"
+                value={classSelectValue}
+                onValueChange={(value) => {
+                  startRequest({ soft: true });
+                  setClassId(value);
+                  setPage(1);
+                }}
+                options={classSelectOptions}
+                placeholder="All assigned classes"
+                aria-label="Filter tickets by class"
+                size="sm"
+                triggerClassName="w-[420px] max-w-full"
+                contentClassName="w-[var(--radix-select-trigger-width)] min-w-0"
+                renderValue={(option) =>
+                  option ? (
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="whitespace-nowrap">{option.label}</span>
+                      {option.description ? (
+                        <span className="shrink-0 text-[11px] font-normal text-[#6F6F6F]">
+                          {option.description}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : undefined
+                }
+              />
+            </label>
+            <Button
+              type="button"
               size="sm"
-              triggerClassName="w-[520px] max-w-full"
-              contentClassName="w-[var(--radix-select-trigger-width)] min-w-0"
-              renderValue={(option) =>
-                option ? (
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="whitespace-nowrap">{option.label}</span>
-                    {option.description ? (
-                      <span className="shrink-0 text-[11px] font-normal text-[#6F6F6F]">
-                        {option.description}
-                      </span>
-                    ) : null}
-                  </span>
-                ) : undefined
-              }
-            />
-          </label>
+              onClick={() => setLeaveModalOpen(true)}
+              className="gap-1"
+            >
+              <CalendarPlus className="size-3.5" />
+              Request leave
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setLeaveListOpen(true)}
+              className="gap-1 border-[#DEE8F2]/50 bg-transparent text-[#F5F9FF] hover:bg-white/10 hover:text-white"
+            >
+              <ClipboardList className="size-3.5" />
+              Leave requests
+            </Button>
+          </div>
         }
         searchValue={search}
         searchPlaceholder="Search this page"
@@ -444,19 +493,37 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                 <p className="mt-1 break-all font-mono text-[10px] text-[#6F6F6F]">
                   Ticket {selected.id}
                 </p>
-                {selected.escalated_to_name && (
-                  <p className="mt-2 text-xs font-semibold text-amber-700">
-                    Escalated to {selected.escalated_to_name}
-                    {selected.escalated_at && (
-                      <span className="font-normal text-[#6F6F6F]">
-                        {" · "}
-                        <time dateTime={selected.escalated_at}>
-                          {formatTicketDate(selected.escalated_at)}
-                        </time>
-                      </span>
-                    )}
-                  </p>
-                )}
+                <div className="mt-2 space-y-1 text-xs text-[#5A5A5A]">
+                  {selected.owner_trainer_name && (
+                    <p>
+                      <span className="font-semibold text-[#111111]">Owner</span>{" "}
+                      {selected.owner_trainer_id === currentUserId
+                        ? "you"
+                        : selected.owner_trainer_name}
+                    </p>
+                  )}
+                  {selected.queued_for_admin_at && (
+                    <p className="font-semibold text-[#9B3A2A]">
+                      Waiting for an administrator since{" "}
+                      {formatTicketDate(selected.queued_for_admin_at)}
+                    </p>
+                  )}
+                  {selected.handover_from_name && (
+                    <p>
+                      <span className="font-semibold text-[#111111]">Handover</span> from{" "}
+                      {selected.handover_from_name}
+                      {selected.handover_reason
+                        ? ` · ${handoverReasonLabel(selected.handover_reason)}`
+                        : ""}
+                      {selected.handover_at
+                        ? ` · ${formatHandoverTime(selected.handover_at)}`
+                        : ""}
+                    </p>
+                  )}
+                  {selected.escalated_to_name && !selected.owner_trainer_name && (
+                    <p className="text-amber-700">Escalated to {selected.escalated_to_name}</p>
+                  )}
+                </div>
               </header>
 
               <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
@@ -494,6 +561,27 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                   ) : (
                     selected.replies.map((item) => {
                       const fromStudent = item.user_id === selected.student_id;
+                      if (isSystemReply(item.message)) {
+                        return (
+                          <div
+                            key={item.id}
+                            className="mx-auto max-w-[95%] rounded-lg border border-dashed border-[#D6C48A] bg-[#FFF9EA] px-3.5 py-2.5 text-sm"
+                          >
+                            <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#8A6414]">
+                              System update
+                            </p>
+                            <p className="whitespace-pre-wrap break-words text-[#5A4A1F]">
+                              {item.message}
+                            </p>
+                            <time
+                              dateTime={item.created_at}
+                              className="mt-1 block text-[10px] text-[#8A7A55]"
+                            >
+                              {formatTicketDate(item.created_at)}
+                            </time>
+                          </div>
+                        );
+                      }
                       return (
                         <div
                           key={item.id}
@@ -576,7 +664,10 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
               <footer className="border-t border-[#E5E5E5] bg-white px-5 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs text-[#6F6F6F]">
-                    {selected.status === "OPEN" && "Waiting for your answer."}
+                    {selected.status === "OPEN" &&
+                      (selected.queued_for_admin_at
+                        ? "Waiting for an administrator to pick this up."
+                        : "Waiting for your answer.")}
                     {selected.status === "ANSWERED" &&
                       "Answered. Mark it resolved when the student no longer needs help."}
                     {selected.status === "RESOLVED" && "This ticket is completed."}
@@ -618,6 +709,18 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
             </div>
           )
         }
+      />
+      <LeaveRequestModal
+        isOpen={leaveModalOpen}
+        onClose={() => setLeaveModalOpen(false)}
+        classId={leaveClass?.id ?? ""}
+        classLabel={leaveClass ? `${leaveClass.code} · ${leaveClass.name}` : undefined}
+        onCreated={() => setRetry((value) => value + 1)}
+      />
+      <LeaveRequestsModal
+        isOpen={leaveListOpen}
+        onClose={() => setLeaveListOpen(false)}
+        onChanged={() => setRetry((value) => value + 1)}
       />
     </div>
   );

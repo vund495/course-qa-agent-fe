@@ -16,6 +16,14 @@ export type Ticket = {
   escalated_at?: string | null;
   escalated_to_name?: string | null;
   student_seen_at?: string | null;
+  // AI-158 — ownership and handover context (additive; older responses omit it).
+  owner_trainer_id?: string | null;
+  owner_trainer_name?: string | null;
+  queued_for_admin_at?: string | null;
+  handover_from_id?: string | null;
+  handover_from_name?: string | null;
+  handover_reason?: "auto_absent" | "manual_transfer" | null;
+  handover_at?: string | null;
 };
 
 export type TicketReply = {
