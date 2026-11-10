@@ -319,4 +319,27 @@ describe("attendanceApi endpoints & URL encoding", () => {
       restore();
     }
   });
+
+  it("mySchedule calls GET on the student schedule endpoint", async () => {
+    const { calls, restore } = setupMockFetch({
+      class_id: "c-1",
+      class_code: "CS101",
+      class_name: "Computer Science",
+      date_from: "2026-11-02",
+      date_to: "2026-11-08",
+      today: "2026-11-05",
+      meeting_url: null,
+      sessions: [],
+      holidays: [],
+    });
+
+    try {
+      await attendanceApi.mySchedule("class/99", "2026-11-02", "2026-11-08");
+      expect(calls[0].url).toContain(
+        "/api/student/classes/class%2F99/schedule?from=2026-11-02&to=2026-11-08",
+      );
+    } finally {
+      restore();
+    }
+  });
 });

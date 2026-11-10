@@ -131,6 +131,40 @@ export type StudentAttendance = {
   items: StudentAttendanceItem[];
 };
 
+export type HolidayType = "solar" | "lunar" | "admin";
+export type HolidayScope = "system" | "class";
+
+export type StudentScheduleHoliday = {
+  date: string; // YYYY-MM-DD
+  name: string;
+  type: HolidayType;
+  scope: HolidayScope;
+};
+
+export type StudentScheduleSession = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  start_at: string; // ISO datetime
+  end_at: string; // ISO datetime
+  subject: string;
+  trainer_name: string | null;
+  status: SessionStatus;
+  attendance_status: AttendanceStatus | null;
+  attendance_note: string | null;
+};
+
+export type StudentSchedule = {
+  class_id: string;
+  class_code: string;
+  class_name: string;
+  date_from: string;
+  date_to: string;
+  today: string; // Vietnam-local date
+  meeting_url: string | null;
+  sessions: StudentScheduleSession[];
+  holidays: StudentScheduleHoliday[];
+};
+
 function token(): string | null {
   return typeof window === "undefined" ? null : window.localStorage.getItem(AUTH_TOKEN_KEY);
 }
@@ -259,6 +293,15 @@ export const attendanceApi = {
   ): Promise<StudentAttendance> =>
     attendanceFetch<StudentAttendance>(
       `/api/student/classes/${encodeURIComponent(classId)}/attendance${buildQuery(from, to)}`,
+    ),
+
+  mySchedule: (
+    classId: string,
+    from?: string,
+    to?: string,
+  ): Promise<StudentSchedule> =>
+    attendanceFetch<StudentSchedule>(
+      `/api/student/classes/${encodeURIComponent(classId)}/schedule${buildQuery(from, to)}`,
     ),
 };
 
