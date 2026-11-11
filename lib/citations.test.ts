@@ -122,6 +122,8 @@ describe("mapHistoryCitation", () => {
       snippet: "Key definition",
       documentId: "doc-123",
       page: 4,
+      pages: [4],
+      pageLabel: null,
       indexes: [1, 3],
       highlights: ["Highlight 1", "Highlight 2"],
     });
