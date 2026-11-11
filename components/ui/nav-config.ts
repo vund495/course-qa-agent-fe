@@ -6,6 +6,7 @@ import {
   BookOpen,
   UserCircle,
   Activity,
+  Inbox,
 } from "lucide-react";
 
 /** Roles mirror the backend RBAC (AI-27). Client-side filtering is UX only. */
@@ -68,6 +69,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Admin Dashboard",
     roles: ["admin"],
     icon: LayoutDashboard,
+  },
+  {
+    href: "/admin/tickets/queue",
+    label: "Ticket Queue",
+    roles: ["admin"],
+    icon: Inbox,
   },
   {
     href: "/admin/system",

@@ -7,6 +7,7 @@ import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
 import { studentApi, type StudentClass } from "@/lib/student-api";
 import { cn } from "@/lib/utils";
+import { isSystemReply } from "@/lib/handover-api";
 import {
   addTicketReply,
   getStudentTicket,
@@ -436,6 +437,27 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
                 ) : (
                   selected.replies.map((item) => {
                     const fromStudent = item.user_id === selected.student_id;
+                    if (isSystemReply(item.message)) {
+                      return (
+                        <div
+                          key={item.id}
+                          className="mx-auto max-w-[95%] rounded-lg border border-dashed border-[#D6C48A] bg-[#FFF9EA] px-3.5 py-2.5 text-sm"
+                        >
+                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#8A6414]">
+                            System update
+                          </p>
+                          <p className="whitespace-pre-wrap break-words text-[#5A4A1F]">
+                            {item.message}
+                          </p>
+                          <time
+                            dateTime={item.created_at}
+                            className="mt-1 block text-[10px] text-[#8A7A55]"
+                          >
+                            {formatTicketDate(item.created_at)}
+                          </time>
+                        </div>
+                      );
+                    }
                     return (
                       <div
                         key={item.id}

@@ -9,6 +9,41 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "11111111-1111-1111-1111-111111111111" }),
 }));
 
+vi.mock("@/features/profile/api", () => ({
+  profileApi: {
+    me: vi.fn().mockResolvedValue({
+      id: "trainer-1",
+      username: "Teacher Nam",
+      email: "nam@example.com",
+      role: "trainer",
+      class_id: null,
+      student_code: null,
+      is_active: true,
+    }),
+  },
+}));
+
+vi.mock("@/lib/handover-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/handover-api")>();
+  return {
+    ...actual,
+    handoverApi: {
+      ...actual.handoverApi,
+      getMyStatus: vi.fn().mockResolvedValue({
+        trainer_id: "trainer-1",
+        trainer_name: "Teacher Nam",
+        date: "2026-11-09",
+        status: "present",
+        note: null,
+        recorded_by: null,
+        updated_at: null,
+      }),
+      listClassStatus: vi.fn().mockResolvedValue([]),
+      setMyStatus: vi.fn(),
+    },
+  };
+});
+
 describe("TeacherAttendancePage", () => {
   let host: HTMLDivElement;
   let root: Root;
