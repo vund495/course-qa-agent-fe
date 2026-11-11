@@ -17,6 +17,7 @@ import {
   Mail,
   History,
   Activity,
+  Inbox,
 } from "lucide-react";
 import { Role, settingsHrefForRole } from "@/components/ui/nav-config";
 import { useAuth } from "@/components/ui/auth-guard";
@@ -152,6 +153,14 @@ export function SidebarNavBody({
               >
                 <BookOpen className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>Classes</span>}
+              </Link>
+              <Link
+                href="/admin/tickets/queue"
+                title="Ticket Queue"
+                className={linkCls(pathname.startsWith("/admin/tickets/queue"))}
+              >
+                <Inbox className="h-4 w-4 shrink-0" />
+                {!collapsed && <span>Ticket Queue</span>}
               </Link>
               <Link
                 href="/admin/reports"
