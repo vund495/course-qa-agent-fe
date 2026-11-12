@@ -4,12 +4,15 @@ import {
   MAX_FILE_SIZE_BYTES,
   acceptedExtensions,
   canPreviewDocument,
+  attachDocumentToSyllabus,
   deleteDocument,
   fetchDocumentFile,
+  fetchTeacherSyllabus,
   formatFileSize,
   rejectDocument,
   replaceNameError,
   retryDocument,
+  uploadDocuments,
   validationError,
   isRelevanceWarning,
   formatRelevanceReason,
@@ -333,6 +336,169 @@ describe("isRelevanceWarning and formatRelevanceReason", () => {
     try {
       await retryDocument({ token: "t" }, "doc-1", { force: true });
       expect(calls[0].url).toContain("/api/documents/doc-1/retry?force=true");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("fetchTeacherSyllabus (AI-166)", () => {
+  it("maps draft units and per-unit material statuses", async () => {
+    const calls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          class_id: "class-1",
+          document_id: "syllabus-1",
+          file_name: "Syllabus.md",
+          status: "pending",
+          is_draft: true,
+          ready_material_count: 1,
+          total_material_count: 2,
+          can_approve: true,
+          units: [
+            {
+              unit_number: 1,
+              unit_title: "Basics",
+              description: "Intro",
+              content: "Session 1",
+              materials: [
+                {
+                  id: "m1",
+                  file_name: "one.md",
+                  status: "indexed",
+                  failure_reason: null,
+                  version: 1,
+                  created_at: "2026-11-09T00:00:00Z",
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      const result = await fetchTeacherSyllabus({ token: "t" }, "class-1");
+      expect(calls[0]).toContain("/api/documents/classes/class-1/syllabus-units");
+      expect(result).toMatchObject({
+        documentId: "syllabus-1",
+        isDraft: true,
+        canApprove: true,
+        readyMaterialCount: 1,
+      });
+      expect(result.units[0].unitNumber).toBe(1);
+      expect(result.units[0].materials[0]).toMatchObject({
+        id: "m1",
+        fileName: "one.md",
+        status: "indexed",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("uploadDocuments (AI-166)", () => {
+  it("preserves the backend warning for a rejected per-file result", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          uploaded: [
+            {
+              file_name: "unrelated.md",
+              document: null,
+              error: null,
+              warning: "Course relevance: Content does not match this course.",
+            },
+          ],
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      )) as typeof fetch;
+    try {
+      const [outcome] = await uploadDocuments(
+        { token: "t" },
+        "class-1",
+        [new File(["note"], "unrelated.md")],
+        { syllabusDocumentId: "syllabus-1", unitNumber: 1 },
+      );
+      expect(outcome.warning).toBe(
+        "Course relevance: Content does not match this course.",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("sends syllabus_document_id and unit_number with the files", async () => {
+    let body: FormData | null = null;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      body = init?.body as FormData;
+      return new Response(JSON.stringify({ uploaded: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    try {
+      await uploadDocuments({ token: "t" }, "class-1", [new File(["note"], "note.md")], {
+        syllabusDocumentId: "syllabus-1",
+        unitNumber: 2,
+      });
+      expect(body).not.toBeNull();
+      expect(body!.get("class_id")).toBe("class-1");
+      expect(body!.get("syllabus_document_id")).toBe("syllabus-1");
+      expect(body!.get("unit_number")).toBe("2");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("attachDocumentToSyllabus (AI-166)", () => {
+  it("posts the syllabus/unit selection for an existing document", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return new Response(
+        JSON.stringify({
+          id: "doc-1",
+          file_name: "Dsa.pdf",
+          file_type: ".pdf",
+          mime_type: "application/pdf",
+          size_bytes: 100,
+          uploader_id: "u1",
+          class_id: "class-1",
+          class_name: "Class 1",
+          status: "indexed",
+          failure_reason: null,
+          version: 1,
+          created_at: "2026-11-09T00:00:00Z",
+          syllabus_document_id: "syllabus-1",
+          syllabus_unit_number: 2,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      const result = await attachDocumentToSyllabus(
+        { token: "t" },
+        "doc-1",
+        "syllabus-1",
+        2,
+      );
+      expect(calls[0].url).toContain("/api/documents/doc-1/syllabus-link");
+      expect(calls[0].init?.method).toBe("POST");
+      expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+        syllabus_document_id: "syllabus-1",
+        unit_number: 2,
+      });
+      expect(result.syllabusDocumentId).toBe("syllabus-1");
+      expect(result.syllabusUnitNumber).toBe(2);
     } finally {
       globalThis.fetch = originalFetch;
     }

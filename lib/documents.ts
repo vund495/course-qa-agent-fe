@@ -23,6 +23,8 @@ export type DocumentItem = {
   className: string;
   status: DocumentStatus;
   failureReason: string | null;
+  syllabusDocumentId: string | null;
+  syllabusUnitNumber: number | null;
   /** AI-39 AC-03: uploads of an existing file name create the next version. */
   version: number;
   createdAt: string;
@@ -104,6 +106,8 @@ type DocumentRow = {
   class_name: string;
   status: DocumentStatus;
   failure_reason: string | null;
+  syllabus_document_id?: string | null;
+  syllabus_unit_number?: number | null;
   version: number;
   created_at: string;
 };
@@ -120,10 +124,120 @@ function toItem(i: DocumentRow): DocumentItem {
     className: i.class_name,
     status: i.status,
     failureReason: i.failure_reason ?? null,
+    syllabusDocumentId: i.syllabus_document_id ?? null,
+    syllabusUnitNumber: i.syllabus_unit_number ?? null,
     version: i.version ?? 1,
     createdAt: i.created_at,
   };
 }
+export type SyllabusMaterial = {
+  id: string;
+  fileName: string;
+  status: DocumentStatus;
+  failureReason: string | null;
+  version: number;
+  createdAt: string;
+};
+
+export type TeacherSyllabusUnit = {
+  unitNumber: number;
+  unitTitle: string;
+  description: string | null;
+  content: string;
+  materials: SyllabusMaterial[];
+};
+
+export type TeacherSyllabus = {
+  classId: string;
+  documentId: string | null;
+  fileName: string | null;
+  status: DocumentStatus | null;
+  isDraft: boolean;
+  readyMaterialCount: number;
+  totalMaterialCount: number;
+  canApprove: boolean;
+  units: TeacherSyllabusUnit[];
+  syllabusMaterials: SyllabusMaterial[];
+};
+
+type TeacherSyllabusRow = {
+  class_id: string;
+  document_id: string | null;
+  file_name: string | null;
+  status: DocumentStatus | null;
+  is_draft: boolean;
+  ready_material_count: number;
+  total_material_count: number;
+  can_approve: boolean;
+  syllabus_materials?: {
+    id: string;
+    file_name: string;
+    status: DocumentStatus;
+    failure_reason: string | null;
+    version: number;
+    created_at: string;
+  }[];
+  units: {
+    unit_number: number;
+    unit_title: string;
+    description: string | null;
+    content: string;
+    materials: {
+      id: string;
+      file_name: string;
+      status: DocumentStatus;
+      failure_reason: string | null;
+      version: number;
+      created_at: string;
+    }[];
+  }[];
+};
+
+/** AI-166: teacher-only draft/active syllabus preview with per-unit materials. */
+export async function fetchTeacherSyllabus(
+  auth: AuthHeaders,
+  classId: string,
+): Promise<TeacherSyllabus> {
+  const res = await fetch(
+    `${API_URL}/api/documents/classes/${encodeURIComponent(classId)}/syllabus-units`,
+    { headers: headers(auth) },
+  );
+  if (!res.ok) await throwForStatus(res);
+  const body = (await res.json()) as TeacherSyllabusRow;
+  return {
+    classId: body.class_id,
+    documentId: body.document_id,
+    fileName: body.file_name,
+    status: body.status,
+    isDraft: body.is_draft,
+    readyMaterialCount: body.ready_material_count,
+    totalMaterialCount: body.total_material_count,
+    canApprove: body.can_approve,
+    units: body.units.map((unit) => ({
+      unitNumber: unit.unit_number,
+      unitTitle: unit.unit_title,
+      description: unit.description,
+      content: unit.content,
+      materials: unit.materials.map((material) => ({
+        id: material.id,
+        fileName: material.file_name,
+        status: material.status,
+        failureReason: material.failure_reason,
+        version: material.version,
+        createdAt: material.created_at,
+      })),
+    })),
+    syllabusMaterials: (body.syllabus_materials ?? []).map((material) => ({
+      id: material.id,
+      fileName: material.file_name,
+      status: material.status,
+      failureReason: material.failure_reason,
+      version: material.version,
+      createdAt: material.created_at,
+    })),
+  };
+}
+
 export type ListParams = {
   search?: string;
   classId?: string;
@@ -254,12 +368,14 @@ export type UploadOutcome = {
   fileName: string;
   item: DocumentItem | null;
   error: string | null;
+  warning: string | null;
 };
 
 type UploadRow = {
   file_name: string;
   document: DocumentRow | null;
   error: string | null;
+  warning?: string | null;
 };
 
 /**
@@ -270,11 +386,19 @@ export async function uploadDocuments(
   auth: AuthHeaders,
   classId: string,
   files: File[],
-  options?: { force?: boolean },
+  options?: {
+    force?: boolean;
+    syllabusDocumentId?: string;
+    unitNumber?: number;
+  },
 ): Promise<UploadOutcome[]> {
   const query = options?.force ? "?force=true" : "";
   const form = new FormData();
   form.set("class_id", classId);
+  if (options?.syllabusDocumentId && options.unitNumber !== undefined) {
+    form.set("syllabus_document_id", options.syllabusDocumentId);
+    form.set("unit_number", String(options.unitNumber));
+  }
   for (const f of files) form.append("files", f);
   const res = await fetch(`${API_URL}/api/documents/${query}`, {
     method: "POST",
@@ -287,7 +411,30 @@ export async function uploadDocuments(
     fileName: u.file_name,
     item: u.document ? toItem(u.document) : null,
     error: u.error,
+    warning: u.warning ?? null,
   }));
+}
+
+/** AI-166: attach an already-uploaded material to a syllabus (unit optional). */
+export async function attachDocumentToSyllabus(
+  auth: AuthHeaders,
+  documentId: string,
+  syllabusDocumentId: string,
+  unitNumber: number | null,
+): Promise<DocumentItem> {
+  const res = await fetch(
+    `${API_URL}/api/documents/${encodeURIComponent(documentId)}/syllabus-link`,
+    {
+      method: "POST",
+      headers: { ...headers(auth), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        syllabus_document_id: syllabusDocumentId,
+        unit_number: unitNumber,
+      }),
+    },
+  );
+  if (!res.ok) await throwForStatus(res);
+  return toItem((await res.json()) as DocumentRow);
 }
 
 export type DeleteResult = {
