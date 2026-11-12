@@ -107,9 +107,9 @@ export function AttendanceStatusChip({ status }: { status: AttendanceStatus | nu
       return (
         <span
           data-testid="status-chip-late"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200"
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground"
         >
-          <Clock className="w-3.5 h-3.5 text-amber-600" /> Late
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Late
         </span>
       );
     case "excused_absence":
@@ -227,7 +227,7 @@ export function StudentAttendanceHistory({ data }: StudentAttendanceHistoryProps
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
           Present: {breakdown.present}
         </span>
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-200">
+        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 font-medium text-foreground">
           Late: {breakdown.late}
         </span>
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">

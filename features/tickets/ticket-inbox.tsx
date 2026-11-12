@@ -521,7 +521,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                     </p>
                   )}
                   {selected.escalated_to_name && !selected.owner_trainer_name && (
-                    <p className="text-amber-700">Escalated to {selected.escalated_to_name}</p>
+                    <p className="text-muted-foreground">Escalated to {selected.escalated_to_name}</p>
                   )}
                 </div>
               </header>

@@ -129,7 +129,7 @@ export function QuizList({
   }
 
   return (
-    <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+    <section className="flex flex-1 flex-col gap-4 rounded-xl border border-[#DADADA] bg-white p-5">
       <header>
         <h2 className="font-semibold text-slate-900">Quizzes</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -144,16 +144,16 @@ export function QuizList({
       )}
 
       {quizzes === null ? (
-        <div className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="flex flex-1 items-center gap-2 text-sm text-slate-500">
           <LoaderCircle className="size-4 animate-spin" />
           Loading quizzes…
         </div>
       ) : quizzes.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
+        <p className="flex flex-1 items-center justify-center rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
           No quizzes for this class yet.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
+        <ul className="flex-1 divide-y divide-slate-100 rounded-md border border-slate-200">
           {quizzes.map((quiz) => {
             const open = expandedId === quiz.id;
             const detail = details[quiz.id];
