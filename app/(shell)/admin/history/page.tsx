@@ -11,8 +11,7 @@ import {
 import { paginate } from "@/lib/pagination";
 import { AdminPageShell, ADMIN_CARD } from "@/components/shared/AdminPageShell";
 import { AppSelect } from "@/components/ui/app-select";
-
-const PAGE_SIZE = 10;
+import { Pagination } from "@/components/ui/pagination";
 
 const STATUS_DOT: Record<string, string> = {
   sent: "bg-[#4B9E76]",
@@ -21,45 +20,6 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 type Tab = "imports" | "emails";
-
-function Pager({
-  page,
-  pageCount,
-  total,
-  onChange,
-}: {
-  page: number;
-  pageCount: number;
-  total: number;
-  onChange: (page: number) => void;
-}) {
-  if (total === 0) return null;
-  return (
-    <div className="flex items-center justify-between border-t border-[#DADADA] px-5 py-3 text-[12px] text-[#5A5A5A]">
-      <span>
-        Page {page} of {pageCount} - {total} entries
-      </span>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => onChange(page - 1)}
-          disabled={page <= 1}
-          className="rounded-md border border-[#DADADA] bg-white px-3 py-1.5 font-semibold text-[#111111] hover:bg-[#F7F7F7] disabled:opacity-40"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(page + 1)}
-          disabled={page >= pageCount}
-          className="rounded-md border border-[#DADADA] bg-white px-3 py-1.5 font-semibold text-[#111111] hover:bg-[#F7F7F7] disabled:opacity-40"
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * History - read-only records of bulk imports and sent email.
@@ -141,9 +101,9 @@ export default function AdminHistoryPage() {
     }
   }
 
-  const importList = paginate(batches, importPage, PAGE_SIZE);
-  const importRows = paginate(selected?.rows ?? [], detailPage, PAGE_SIZE);
-  const emailList = paginate(emails, emailPage, PAGE_SIZE);
+  const importList = paginate(batches, importPage);
+  const importRows = paginate(selected?.rows ?? [], detailPage);
+  const emailList = paginate(emails, emailPage);
 
   return (
     <AdminPageShell
@@ -217,7 +177,7 @@ export default function AdminHistoryPage() {
                 </tbody>
               </table>
             )}
-            <Pager page={importList.page} pageCount={importList.pageCount} total={batches.length} onChange={setImportPage} />
+            <Pagination page={importList.page} pageCount={importList.pageCount} total={batches.length} onChange={setImportPage} itemLabel="imports" />
             {selected && (
               <div className="border-t border-[#DADADA] px-5 py-4">
                 <h3 className="text-[13.5px] font-bold text-[#111111] mb-3">{selected.filename} - row report</h3>
@@ -257,7 +217,7 @@ export default function AdminHistoryPage() {
                       ))}
                     </tbody>
                   </table>
-                  <Pager page={importRows.page} pageCount={importRows.pageCount} total={selected.rows.length} onChange={setDetailPage} />
+                  <Pagination page={importRows.page} pageCount={importRows.pageCount} total={selected.rows.length} onChange={setDetailPage} itemLabel="rows" />
                 </div>
                 <p className="text-[12px] text-[#5A5A5A] mt-2">Passwords are generated and emailed per account - they never appear here (AC-07).</p>
               </div>
@@ -338,7 +298,7 @@ export default function AdminHistoryPage() {
                 )}
               </tbody>
             </table>
-            <Pager page={emailList.page} pageCount={emailList.pageCount} total={emails.length} onChange={setEmailPage} />
+            <Pagination page={emailList.page} pageCount={emailList.pageCount} total={emails.length} onChange={setEmailPage} itemLabel="emails" />
           </div>
         </>
       )}
