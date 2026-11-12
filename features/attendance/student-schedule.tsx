@@ -153,7 +153,7 @@ function SessionAttendanceBadge({
   }
   if (session.status === "rescheduled") {
     return (
-      <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+      <span className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-foreground">
         Rescheduled
       </span>
     );
@@ -185,7 +185,7 @@ function SessionCard({
       className={cn(
         "rounded-lg border border-[#E5E5E5] bg-white p-2.5 text-left shadow-2xs",
         session.status === "cancelled" && "border-rose-200 bg-rose-50/40",
-        session.status === "rescheduled" && "border-amber-200 bg-amber-50/40",
+        session.status === "rescheduled" && "border-border bg-muted/40",
         compact && "p-2",
       )}
     >
@@ -240,7 +240,7 @@ function HolidayLabel({ holiday, compact = false }: { holiday: StudentScheduleHo
     <p
       data-testid={`holiday-${holiday.date}`}
       className={cn(
-        "flex items-start gap-1 rounded-md bg-amber-50 px-1.5 py-1 font-medium text-amber-800",
+        "flex items-start gap-1 rounded-md bg-muted px-1.5 py-1 font-medium text-foreground",
         compact ? "text-[10px] leading-[1.15]" : "text-[11px]",
       )}
       title={`${holiday.name} (${holiday.scope === "class" ? "class holiday" : "public holiday"})`}
@@ -284,7 +284,7 @@ export function WeekSchedule({
               className={cn(
                 "min-h-[190px] rounded-xl border bg-white p-2",
                 holiday
-                  ? "border-amber-200 bg-amber-50/70"
+                  ? "border-border bg-muted/60"
                   : isToday
                     ? "border-[#111111]"
                     : "border-[#E5E5E5]",
@@ -336,7 +336,7 @@ export function WeekSchedule({
               className={cn(
                 "rounded-xl border bg-white p-3",
                 holiday
-                  ? "border-amber-200 bg-amber-50/70"
+                  ? "border-border bg-muted/60"
                   : isToday
                     ? "border-[#111111]"
                     : "border-[#E5E5E5]",
@@ -436,7 +436,7 @@ export function MonthSchedule({
                 className={cn(
                   "relative min-h-[62px] border-b border-r border-[#F0F0F0] p-1 text-left transition-colors last:border-r-0 sm:min-h-[88px] sm:p-1.5",
                   inMonth ? "bg-white hover:bg-[#FAFAFA]" : "bg-[#FAFAFA] text-[#B0B0B0]",
-                  holiday && inMonth && "bg-amber-50 hover:bg-amber-100/70",
+                  holiday && inMonth && "bg-muted hover:bg-muted/80",
                   isWeekend(date) && inMonth && !holiday && "bg-[#FCFCFC]",
                   selected && "z-10 ring-2 ring-inset ring-[#111111]",
                 )}
@@ -457,7 +457,7 @@ export function MonthSchedule({
                 {holiday && inMonth && (
                   <span
                     data-testid={`month-holiday-${date}`}
-                    className="mt-0.5 line-clamp-2 block text-[8px] font-medium leading-[1.15] text-amber-800 sm:text-[9px]"
+                    className="mt-0.5 line-clamp-2 block text-[8px] font-medium leading-[1.15] text-muted-foreground sm:text-[9px]"
                     title={holiday.name}
                   >
                     {holiday.name}
@@ -507,7 +507,7 @@ export function MonthSchedule({
           <div className="space-y-3">
             <header className="flex flex-wrap items-start justify-between gap-2 border-b border-[#F0F0F0] pb-2">
               <div>
-                <h3 className="text-sm font-semibold text-[#111111]">
+                <h3 className="text-[14px] font-bold text-[#111111]">
                   {formatFullDate(selectedDate)}
                 </h3>
                 <p className="mt-0.5 text-[11px] text-[#5A5A5A]">

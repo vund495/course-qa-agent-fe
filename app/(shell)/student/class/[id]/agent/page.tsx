@@ -29,7 +29,7 @@ export default function AgentPage() {
   };
 
   return (
-    <div className="flex h-full w-full min-h-0 flex-1 overflow-hidden rounded-xl border border-[#DADADA] bg-white">
+    <div className="-mx-6 flex h-full min-h-0 flex-1 overflow-hidden border-x border-b border-[#DADADA] bg-white">
       {/* GPT-style workspace: history sits inside the same surface and slides away. */}
       <ChatHistorySidebar
         classId={classId}
@@ -40,6 +40,7 @@ export default function AgentPage() {
         side="left"
         collapsed={historyCollapsed}
         onExpand={() => setHistoryCollapsed(false)}
+        onCollapse={() => setHistoryCollapsed(true)}
         mobileOpen={historyOpen}
         onMobileOpenChange={setHistoryOpen}
       />
@@ -54,8 +55,6 @@ export default function AgentPage() {
           onOpenSession={(sessionId) => setActiveSessionId(sessionId)}
           onNewChat={startNewChat}
           onOpenHistory={() => setHistoryOpen(true)}
-          historyCollapsed={historyCollapsed}
-          onToggleHistory={() => setHistoryCollapsed(!historyCollapsed)}
         />
       </div>
     </div>

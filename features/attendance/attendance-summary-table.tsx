@@ -151,7 +151,7 @@ export function AttendanceSummaryTable({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0F0F0] pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-[#111111]">Attendance Summary</h3>
+            <h3 className="text-[14px] font-bold text-[#111111]">Attendance Summary</h3>
             {totalSessions !== undefined && (
               <span className="rounded bg-[#FAFAFA] border border-[#E5E5E5] px-2 py-0.5 text-xs text-[#5A5A5A] font-medium">
                 {totalSessions} {totalSessions === 1 ? "session" : "sessions"}
@@ -364,7 +364,7 @@ export function AttendanceSummaryTable({
                     <td className="py-2.5 px-3 text-center font-medium text-emerald-700">
                       {row.present}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-medium text-amber-700">
+                    <td className="py-2.5 px-3 text-center font-medium text-foreground">
                       {row.late}
                     </td>
                     <td className="py-2.5 px-3 text-center font-medium text-blue-700">
@@ -383,7 +383,7 @@ export function AttendanceSummaryTable({
                             : rate >= 80
                             ? "text-emerald-800 bg-emerald-50"
                             : rate >= 50
-                            ? "text-amber-800 bg-amber-50"
+                            ? "text-foreground bg-muted"
                             : "text-rose-800 bg-rose-50",
                         )}
                       >

@@ -135,7 +135,7 @@ export default function StudentSchedulePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="My Schedule"
         subtitle="See your weekly and monthly class times, meeting links, holidays and attendance status."
@@ -153,6 +153,7 @@ export default function StudentSchedulePage() {
         }
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       <section
         data-testid="schedule-toolbar"
         className="flex flex-col gap-3 rounded-xl border border-[#E5E5E5] bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -258,6 +259,7 @@ export default function StudentSchedulePage() {
           onSelectDate={setSelectedDate}
         />
       )}
+      </div>
     </div>
   );
 }

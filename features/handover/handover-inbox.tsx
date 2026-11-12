@@ -60,13 +60,9 @@ export function HandoverInbox({ onAnswered }: { onAnswered?: () => void }) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="rounded-xl border border-[#DADADA] bg-white p-4 text-sm text-[#6F6F6F]">
-        Loading ticket handovers…
-      </div>
-    );
-  }
+  // Nothing to show yet: this block is supplementary, so reserving space for it
+  // would push the ticket inbox down and then snap back when it turns out empty.
+  if (loading) return null;
 
   if (error) {
     return (

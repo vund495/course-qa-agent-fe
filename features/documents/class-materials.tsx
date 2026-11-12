@@ -38,7 +38,7 @@ import {
   type DocumentItem,
 } from "@/lib/documents";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 const STATUS_LABEL: Record<DocumentItem["status"], string> = {
   pending: "Pending approval",
@@ -533,7 +533,7 @@ export function ClassMaterials({
       <div className="rounded-lg border border-[#DADADA] bg-white px-4 py-3.5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 id="class-materials-heading" className="text-[15px] font-bold text-[#111111]">
+            <h3 id="class-materials-heading" className="text-[14px] font-bold text-[#111111]">
               Materials
             </h3>
             <p className="mt-0.5 text-[13px] text-[#5A5A5A]">
@@ -751,7 +751,7 @@ export function ClassMaterials({
                 <th className="hidden px-4 py-3 md:table-cell">Size</th>
                 <th className="hidden px-4 py-3 md:table-cell">Uploaded</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="w-56 px-4 py-3"></th>
+                <th className="w-px whitespace-nowrap px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#DADADA]">
@@ -843,37 +843,35 @@ export function ClassMaterials({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                      {d.status !== "replaced" && (
-                        <>
-                          {canPreviewDocument(d) && (
-                            <button
-                              type="button"
-                              onClick={() => void handlePreview(d)}
-                              disabled={
-                                deletingId === d.id ||
-                                replacingId === d.id ||
-                                loading
-                              }
-                              className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
-                            >
-                              Preview
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => void handleDownload(d)}
-                            disabled={
-                              downloadingId === d.id ||
-                              deletingId === d.id ||
-                              replacingId === d.id ||
-                              loading
-                            }
-                            className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
-                          >
-                            {downloadingId === d.id ? "Downloading…" : "Download"}
-                          </button>
-                        </>
+                    <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
+                      {d.status !== "replaced" && canPreviewDocument(d) && (
+                        <button
+                          type="button"
+                          onClick={() => void handlePreview(d)}
+                          disabled={
+                            deletingId === d.id ||
+                            replacingId === d.id ||
+                            loading
+                          }
+                          className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
+                        >
+                          Preview
+                        </button>
+                      )}
+                      {d.status !== "replaced" && d.status !== "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => void handleDownload(d)}
+                          disabled={
+                            downloadingId === d.id ||
+                            deletingId === d.id ||
+                            replacingId === d.id ||
+                            loading
+                          }
+                          className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
+                        >
+                          {downloadingId === d.id ? "Downloading…" : "Download"}
+                        </button>
                       )}
                       {d.status === "pending" && (
                         <>
@@ -942,7 +940,7 @@ export function ClassMaterials({
                           </button>
                         </>
                       )}
-                      {d.status !== "replaced" && (
+                      {d.status !== "replaced" && d.status !== "pending" && (
                         <button
                           type="button"
                           onClick={() => startReplace(d)}

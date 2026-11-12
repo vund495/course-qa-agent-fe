@@ -9,6 +9,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "border-[#CFCFCF] bg-white text-[#111111] shadow-xs hover:bg-[#F7F7F7] aria-expanded:bg-[#F7F7F7]",
+        brand:
+          "border-[var(--brand)] bg-[var(--brand)] text-white shadow-xs hover:bg-[var(--brand-hover)] hover:border-[var(--brand-hover)] aria-expanded:bg-[var(--brand-pressed)] focus-visible:border-[var(--brand)] focus-visible:ring-[var(--brand)]/30",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

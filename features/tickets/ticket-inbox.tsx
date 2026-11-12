@@ -361,7 +361,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       {(classError || countsError) && (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700">
           {classError || countsError}
@@ -496,7 +496,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                     </p>
                   )}
                   {selected.escalated_to_name && !selected.owner_trainer_name && (
-                    <p className="text-amber-700">Escalated to {selected.escalated_to_name}</p>
+                    <p className="text-muted-foreground">Escalated to {selected.escalated_to_name}</p>
                   )}
                 </div>
               </header>

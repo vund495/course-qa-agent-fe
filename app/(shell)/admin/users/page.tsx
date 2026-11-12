@@ -9,11 +9,14 @@ import { isGeneratedCodeCurrent, updateAdminUserForm, type AdminUserFormState } 
 import { ActionMenu } from "@/components/shared/ActionMenu";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Modal } from "@/components/shared/Modal";
-import { AdminPageShell, ADMIN_CARD } from "@/components/shared/AdminPageShell";
+import { paginate } from "@/lib/pagination";
+import { Pagination } from "@/components/ui/pagination";
+import { AdminPageShell, ADMIN_CARD, AdminTableSkeleton } from "@/components/shared/AdminPageShell";
 import { AppSelect } from "@/components/ui/app-select";
 
 export default function AdminUsersPage() {
   const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
   const [users, setUsers] = React.useState<AdminUser[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -244,6 +247,8 @@ export default function AdminUsersPage() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  const userPage = paginate(filteredUsers, page);
+
   return (
     <AdminPageShell
       title="Users"
@@ -294,14 +299,14 @@ export default function AdminUsersPage() {
             type="text"
             placeholder="Search users"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-white border border-[#DADADA] rounded-lg pl-9 pr-4 py-2 text-[13.5px] outline-none focus:border-[#111111] shadow-sm transition-shadow"
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <AppSelect
             value={roleFilter}
-            onValueChange={setRoleFilter}
+            onValueChange={(v) => { setRoleFilter(v); setPage(1); }}
             aria-label="Filter users by role"
             options={[
               { value: "all", label: "All roles" },
@@ -315,7 +320,7 @@ export default function AdminUsersPage() {
           />
           <AppSelect
             value={statusFilter}
-            onValueChange={setStatusFilter}
+            onValueChange={(v) => { setStatusFilter(v); setPage(1); }}
             aria-label="Filter users by status"
             options={[
               { value: "all", label: "All statuses" },
@@ -329,7 +334,7 @@ export default function AdminUsersPage() {
       </div>
 
       {loading ? (
-        <div className={`${ADMIN_CARD} p-8 text-center text-[#5A5A5A] text-[13px]`}>Loading users...</div>
+        <AdminTableSkeleton rows={8} columns={6} />
       ) : (
         <>
         {selected.length > 0 && (
@@ -399,8 +404,7 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user, idx) => (
-                  <tr key={user.id} className="hover:bg-[#FAFAFA] transition-colors">
+                userPage.items.map((user, idx) => (                  <tr key={user.id} className="hover:bg-[#FAFAFA] transition-colors">
                     <td className="px-5 py-3.5">
                       <input
                         type="checkbox"
@@ -436,7 +440,7 @@ export default function AdminUsersPage() {
                     <td className="px-5 py-3.5 text-center relative">
                       <ActionMenu
                         label={`Actions for ${user.username}`}
-                        direction={idx === filteredUsers.length - 1 ? "up" : "down"}
+                        direction={idx === userPage.items.length - 1 ? "up" : "down"}
                         items={[
                           { label: "View details", icon: <Eye className="w-3.5 h-3.5" />, onSelect: () => setDetailsUser(user) },
                           ...(user.is_active
@@ -452,6 +456,13 @@ export default function AdminUsersPage() {
               )}
             </tbody>
           </table>
+          <Pagination
+            page={userPage.page}
+            pageCount={userPage.pageCount}
+            total={filteredUsers.length}
+            onChange={setPage}
+            itemLabel="accounts"
+          />
         </div>
         </>
       )}

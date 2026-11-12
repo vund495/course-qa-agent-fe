@@ -416,7 +416,7 @@ export function StudentQuizPlayer({
                 <span>·</span>
                 <span>{current.difficulty}</span>
                 {answer.is_marked_for_review && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-semibold text-foreground">
                     <Flag className="size-3" /> Marked
                   </span>
                 )}
@@ -586,7 +586,7 @@ export function StudentQuizPlayer({
             </DialogDescription>
           </DialogHeader>
           {unanswered > 0 ? (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+            <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-[13px] text-foreground">
               {unanswered} question{unanswered === 1 ? "" : "s"} still have no answer. They will
               score zero.
             </p>

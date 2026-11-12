@@ -346,7 +346,7 @@ export default function ClassSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Course Settings"
         subtitle="Class information and the configuration that guides how this class is taught."
@@ -354,7 +354,7 @@ export default function ClassSettingsPage() {
           <button
             type="button"
             onClick={() => void openCopyPicker()}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--brand-line)] bg-white/80 px-3 py-1.5 text-[12.5px] font-semibold text-[var(--brand-ink)] transition-colors hover:bg-white"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-white/25 bg-transparent px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-white/10"
           >
             <Copy className="h-3.5 w-3.5" />
             Copy from another class
@@ -362,6 +362,7 @@ export default function ClassSettingsPage() {
         }
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       <div className="rounded-lg border border-[#DADADA] bg-white p-6">
         <h3 className="mb-4 text-[14px] font-bold text-[#111111]">General</h3>
         {!cls && loading ? (
@@ -649,6 +650,7 @@ export default function ClassSettingsPage() {
           </div>
         </>
       )}
+      </div>
 
       <Modal
         isOpen={isCopyOpen}

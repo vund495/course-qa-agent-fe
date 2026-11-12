@@ -49,9 +49,9 @@ export default function StudentClassOverviewPage() {
 
   if (cold) {
     return (
-      <div className="space-y-6">
+      <div>
         <ClassRecord cls={null} role="student" />
-        <SkeletonCard className="h-[180px]" />
+        <SkeletonCard className="h-[180px] -mx-6 rounded-none border-x border-b border-t-0" />
       </div>
     );
   }
@@ -70,7 +70,7 @@ export default function StudentClassOverviewPage() {
   }
 
   return (
-    <Reveal className="space-y-6">
+    <Reveal className="flex flex-1 flex-col">
       <ClassRecord cls={cls} role="student" />
       {hasClassInfo(info) && <ClassInfoCard info={info} />}
     </Reveal>

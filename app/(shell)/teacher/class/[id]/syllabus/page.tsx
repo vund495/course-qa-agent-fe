@@ -11,12 +11,13 @@ export default function ClassSyllabusPage() {
   const [refreshKey, setRefreshKey] = React.useState(0);
 
   return (
-    <div>
-      <SyllabusRoadmap classId={id} isTeacher refreshKey={refreshKey} />
-      <ClassMaterials
-        classId={id}
-        onIndexedChange={() => setRefreshKey((k) => k + 1)}
-      />
+    <div className="flex flex-1 flex-col">
+      <SyllabusRoadmap classId={id} isTeacher refreshKey={refreshKey}>
+        <ClassMaterials
+          classId={id}
+          onIndexedChange={() => setRefreshKey((k) => k + 1)}
+        />
+      </SyllabusRoadmap>
     </div>
   );
 }

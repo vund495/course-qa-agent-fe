@@ -22,7 +22,7 @@ export function WorkspacePageHeader({
   return (
     <header
       className={cn(
-        "relative isolate flex min-h-[104px] flex-col justify-center overflow-hidden rounded-xl border border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-4 shadow-[0_8px_24px_rgba(23,51,83,0.12)] sm:px-5 md:px-6",
+        "relative isolate -mx-6 -mt-8 flex h-[92px] flex-col justify-center overflow-hidden border border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 shadow-[0_8px_24px_rgba(23,51,83,0.12)] sm:px-5 md:px-6",
         className,
       )}
     >
@@ -37,17 +37,21 @@ export function WorkspacePageHeader({
           WebkitMaskImage: "linear-gradient(to right, transparent, black 46%)",
         }}
       />
-      <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 id={id} className="font-heading text-balance text-[24px] font-bold leading-tight tracking-tight text-white sm:text-[28px]">
+      <div className="relative z-10 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h1 id={id} className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">
               {title}
             </h1>
             {badge}
           </div>
-          {subtitle && <p className="mt-1.5 max-w-3xl text-[13px] leading-relaxed text-[#DEE8F2] sm:text-[13.5px]">{subtitle}</p>}
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {subtitle && (
+          <p className="max-w-4xl text-[13px] leading-relaxed text-[#DEE8F2] sm:text-[13.5px]">
+            {subtitle}
+          </p>
+        )}
       </div>
     </header>
   );

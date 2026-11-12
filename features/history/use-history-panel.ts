@@ -11,9 +11,11 @@ import { readHistoryCollapsed, writeHistoryCollapsed } from './history-prefs';
  * transcript takes the full width. The chat header toggle brings it back.
  */
 export function useHistoryPanel() {
-  const [isCollapsed, setIsCollapsed] = React.useState(false);
+  // The server render and the first client render both start collapsed, so the
+  // history column never flashes a full-width white panel before the stored
+  // preference is read.
+  const [isCollapsed, setIsCollapsed] = React.useState(true);
 
-  // Restore the last shape before paint; the server/first client render is expanded.
   useIsomorphicLayoutEffect(() => {
     setIsCollapsed(readHistoryCollapsed());
   }, []);

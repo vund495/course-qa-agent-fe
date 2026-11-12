@@ -303,7 +303,7 @@ export function AttendanceSheet({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0F0F0] pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-[#111111]">
+            <h3 className="text-[14px] font-bold text-[#111111]">
               Session: {formatDateDisplay(session.date)}
             </h3>
             <span
@@ -312,7 +312,7 @@ export function AttendanceSheet({
                   ? "bg-blue-50 text-blue-700"
                   : session.status === "cancelled"
                   ? "bg-red-50 text-red-700"
-                  : "bg-amber-50 text-amber-700"
+                  : "bg-muted text-foreground"
               }`}
             >
               {session.status}
@@ -330,7 +330,7 @@ export function AttendanceSheet({
             <UserCheck className="size-3 text-emerald-600" />
             Present: {currentCounts.present}
           </span>
-          <span className="rounded-md bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
+          <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
             Late: {currentCounts.late}
           </span>
           <span className="rounded-md bg-rose-50 px-2 py-0.5 font-medium text-rose-800">
@@ -450,7 +450,7 @@ export function AttendanceSheet({
           )}
           {isDirty && (
             <span
-              className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+              className="inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground"
               data-testid="unsaved-changes-indicator"
             >
               ● Unsaved changes

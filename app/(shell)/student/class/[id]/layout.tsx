@@ -77,11 +77,11 @@ export default function StudentClassWorkspaceLayout({
 
       {isAgentPage ? (
         <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
-          <PageContainer className="h-full pt-3 pb-3">{children}</PageContainer>
+          <PageContainer className="h-full pt-0 pb-0">{children}</PageContainer>
         </div>
       ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <PageContainer className="pt-3">{children}</PageContainer>
+          <PageContainer className="flex min-h-full flex-col pt-8 pb-0">{children}</PageContainer>
         </div>
       )}
     </div>
