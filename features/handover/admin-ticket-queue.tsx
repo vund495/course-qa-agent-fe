@@ -169,7 +169,7 @@ export function AdminTicketQueue() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 md:p-6">
+    <div className="flex w-full flex-col gap-4 p-4 md:p-6">
       <TicketsInboxLayout
         title="Ticket Queue"
         subtitle="Tickets no trainer can answer right now. Oldest waits first."
