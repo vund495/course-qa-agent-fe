@@ -7,6 +7,8 @@ import {
   UserCircle,
   Activity,
   Inbox,
+  CalendarClock,
+  CalendarDays,
 } from "lucide-react";
 
 /** Roles mirror the backend RBAC (AI-27). Client-side filtering is UX only. */
@@ -76,6 +78,8 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["admin"],
     icon: Inbox,
   },
+  { href: "/admin/leaves", label: "Leave requests", roles: ["admin"], icon: CalendarClock },
+  { href: "/admin/holidays", label: "Holiday calendar", roles: ["admin"], icon: CalendarDays },
   {
     href: "/admin/system",
     label: "System Health",

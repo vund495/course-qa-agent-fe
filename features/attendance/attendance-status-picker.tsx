@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Clock, ShieldCheck, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import type { AttendanceStatus } from "@/lib/attendance-api";
@@ -21,20 +21,6 @@ export const ATTENDANCE_STATUS_OPTIONS: AttendanceOption[] = [
     shortLabel: "Present",
     activeClassName: "bg-emerald-600 text-white border-emerald-600 shadow-xs",
     icon: Check,
-  },
-  {
-    value: "late",
-    label: "Late",
-    shortLabel: "Late",
-    activeClassName: "bg-amber-500 text-white border-amber-500 shadow-xs",
-    icon: Clock,
-  },
-  {
-    value: "excused_absence",
-    label: "Absent (excused)",
-    shortLabel: "Excused",
-    activeClassName: "bg-blue-600 text-white border-blue-600 shadow-xs",
-    icon: ShieldCheck,
   },
   {
     value: "unexcused_absence",

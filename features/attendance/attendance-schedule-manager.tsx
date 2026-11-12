@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
+import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
+import { DateInput } from "@/components/ui/date-input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -30,6 +32,12 @@ export const WEEKDAYS = [
   { value: 5, label: "Saturday" },
   { value: 6, label: "Sunday" },
 ];
+
+const WEEKDAY_OPTIONS: AppSelectOption[] = WEEKDAYS.map((day) => ({
+  value: String(day.value),
+  label: day.label,
+  initials: day.label.slice(0, 2).toUpperCase(),
+}));
 
 function formatTimeOnly(timeStr: string): string {
   if (!timeStr) return "";
@@ -330,29 +338,29 @@ export function AttendanceScheduleManager({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Weekday */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                  <label htmlFor="schedule-weekday" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                     Weekday <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={weekday}
-                    onChange={(e) => setWeekday(Number(e.target.value))}
-                    className="w-full rounded-md border border-[#DADADA] bg-white px-2.5 py-1.5 text-xs text-[#111111] focus:border-[#111111] focus:outline-none"
-                  >
-                    {WEEKDAYS.map((w) => (
-                      <option key={w.value} value={w.value}>
-                        {w.label}
-                      </option>
-                    ))}
-                  </select>
+                  <AppSelect
+                    id="schedule-weekday"
+                    aria-label="Weekday"
+                    value={String(weekday)}
+                    onValueChange={(value) => setWeekday(Number(value))}
+                    options={WEEKDAY_OPTIONS}
+                    size="lg"
+                    triggerClassName="h-10 rounded-[10px] duration-200 motion-reduce:transition-none"
+                    contentClassName="w-[var(--radix-select-trigger-width)] min-w-0"
+                  />
                 </div>
 
                 {/* Time Range */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                    <label htmlFor="schedule-start-time" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                       Start Time <span className="text-rose-500">*</span>
                     </label>
                     <input
+                      id="schedule-start-time"
                       type="time"
                       required
                       value={startTime}
@@ -361,10 +369,11 @@ export function AttendanceScheduleManager({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                    <label htmlFor="schedule-end-time" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                       End Time <span className="text-rose-500">*</span>
                     </label>
                     <input
+                      id="schedule-end-time"
                       type="time"
                       required
                       value={endTime}
@@ -376,29 +385,34 @@ export function AttendanceScheduleManager({
 
                 {/* Effective From */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                  <label htmlFor="schedule-effective-from" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                     Effective From <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
+                    id="schedule-effective-from"
+                    aria-label="Effective From"
                     required
                     value={effectiveFrom}
-                    onChange={(e) => setEffectiveFrom(e.target.value)}
+                    onChange={setEffectiveFrom}
                     className="w-full rounded-md border border-[#DADADA] bg-white px-2.5 py-1.5 text-xs text-[#111111] focus:border-[#111111] focus:outline-none"
                   />
                 </div>
 
                 {/* Effective To */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
-                    Effective To (Optional)
+                  <label htmlFor="schedule-effective-to" className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#5A5A5A]">
+                    Effective To
+                    <span className="rounded-full bg-[#EEF2F6] px-2 py-0.5 text-[10px] font-medium text-[#5A5A5A]">Optional</span>
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
+                    id="schedule-effective-to"
+                    aria-label="Effective To"
                     value={effectiveTo}
-                    onChange={(e) => setEffectiveTo(e.target.value)}
+                    min={effectiveFrom}
+                    onChange={setEffectiveTo}
                     className="w-full rounded-md border border-[#DADADA] bg-white px-2.5 py-1.5 text-xs text-[#111111] focus:border-[#111111] focus:outline-none"
                   />
+                  <p className="mt-1.5 text-[11px] text-[#6F6F6F]">Leave blank to keep this schedule ongoing.</p>
                 </div>
               </div>
 
@@ -431,14 +445,15 @@ export function AttendanceScheduleManager({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Session Date */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                  <label htmlFor="session-date" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                     Date <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
+                    id="session-date"
+                    aria-label="Session Date"
                     required
                     value={adHocDate}
-                    onChange={(e) => setAdHocDate(e.target.value)}
+                    onChange={setAdHocDate}
                     className="w-full rounded-md border border-[#DADADA] bg-white px-2.5 py-1.5 text-xs text-[#111111] focus:border-[#111111] focus:outline-none"
                   />
                 </div>
@@ -446,10 +461,11 @@ export function AttendanceScheduleManager({
                 {/* Time Range */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                    <label htmlFor="session-start-time" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                       Start Time <span className="text-rose-500">*</span>
                     </label>
                     <input
+                      id="session-start-time"
                       type="time"
                       required
                       value={adHocStart}
@@ -458,10 +474,11 @@ export function AttendanceScheduleManager({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                    <label htmlFor="session-end-time" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                       End Time <span className="text-rose-500">*</span>
                     </label>
                     <input
+                      id="session-end-time"
                       type="time"
                       required
                       value={adHocEnd}
@@ -473,10 +490,11 @@ export function AttendanceScheduleManager({
 
                 {/* Note */}
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-[#5A5A5A] mb-1">
+                  <label htmlFor="session-note" className="block text-xs font-semibold text-[#5A5A5A] mb-1">
                     Note / Purpose
                   </label>
                   <input
+                    id="session-note"
                     type="text"
                     value={adHocNote}
                     onChange={(e) => setAdHocNote(e.target.value)}

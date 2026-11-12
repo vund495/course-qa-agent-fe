@@ -47,7 +47,12 @@ export type LeaveRequest = {
   trainer_name: string | null;
   date_from: string;
   date_to: string;
-  target_trainer_id: string;
+  class_id: string | null;
+  class_name?: string | null;
+  reason_type: LeaveReason;
+  reason_details: string | null;
+  rejection_reason: string | null;
+  target_trainer_id: string | null;
   target_trainer_name: string | null;
   reason: string | null;
   status: LeaveStatus;
@@ -67,11 +72,29 @@ export type SetDayStatusBody = {
   note?: string | null;
 };
 
+export const LEAVE_REASONS = {
+  annual_leave: "Annual / Vacation Leave",
+  sick_leave: "Sick / Medical Leave",
+  wedding_leave: "Wedding Leave",
+  bereavement_leave: "Bereavement / Compassionate Leave",
+  maternity_paternity: "Maternity / Paternity Leave",
+  family_care: "Family Care",
+  business_trip: "Business Trip / Duty Travel",
+  training_leave: "Study / Training Leave",
+  civic_duty: "Public / Civic Duty",
+  personal_leave: "Unpaid / Personal Leave",
+  other: "Other Reason",
+} as const;
+export type LeaveReason = keyof typeof LEAVE_REASONS;
+export type ClassAssistant = { id: string; name: string; email: string };
 export type CreateLeaveBody = {
+  class_id: string;
   date_from: string;
   date_to: string;
-  target_trainer_id: string;
-  reason?: string | null;
+  reason_type: LeaveReason;
+  reason_details?: string | null;
+  /** The existing API field now identifies an optional assigned class assistant. */
+  target_trainer_id?: string | null;
 };
 
 function token(): string | null {
@@ -149,20 +172,25 @@ export const handoverApi = {
       body: JSON.stringify(body),
     }),
 
-  acceptLeave: (id: string): Promise<LeaveRequest> =>
-    handoverFetch<LeaveRequest>(`/api/leave-requests/${encodeURIComponent(id)}/accept`, {
+  listAdminLeaves: (status?: LeaveStatus): Promise<LeaveRequest[]> =>
+    handoverFetch(`/api/admin/leaves${status ? `?status=${status}` : ""}`),
+
+  reviewLeave: (id: string, approve: boolean, rejectionReason?: string): Promise<LeaveRequest> =>
+    handoverFetch(`/api/admin/leaves/${encodeURIComponent(id)}/review`, {
       method: "POST",
+      body: JSON.stringify({ approve, ...(rejectionReason ? { rejection_reason: rejectionReason } : {}) }),
     }),
 
-  rejectLeave: (id: string): Promise<LeaveRequest> =>
-    handoverFetch<LeaveRequest>(`/api/leave-requests/${encodeURIComponent(id)}/reject`, {
-      method: "POST",
+  listClassAssistants: (classId: string): Promise<ClassAssistant[]> =>
+    handoverFetch(`/api/classes/${encodeURIComponent(classId)}/assistants`),
+
+  addClassAssistant: (classId: string, assistantId: string): Promise<ClassAssistant[]> =>
+    handoverFetch(`/api/admin/classes/${encodeURIComponent(classId)}/assistants`, {
+      method: "POST", body: JSON.stringify({ assistant_id: assistantId }),
     }),
 
-  respondLeave: (id: string, action: "accept" | "reject"): Promise<LeaveRequest> =>
-    action === "accept"
-      ? handoverApi.acceptLeave(id)
-      : handoverApi.rejectLeave(id),
+  removeClassAssistant: (classId: string, assistantId: string): Promise<void> =>
+    handoverFetch(`/api/admin/classes/${encodeURIComponent(classId)}/assistants/${encodeURIComponent(assistantId)}`, { method: "DELETE" }),
 
   adminQueue: (): Promise<AdminQueueItem[]> =>
     handoverFetch<AdminQueueItem[]>("/api/admin/tickets/queue"),
@@ -185,13 +213,9 @@ export function todayIso(now: Date = new Date()): string {
 }
 
 export function formatDayLabel(iso: string): string {
-  const date = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
 export function formatLeaveRange(dateFrom: string, dateTo: string): string {

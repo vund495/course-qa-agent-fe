@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CalendarCheck, CircleOff, RefreshCw, Users } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { profileApi } from "@/features/profile/api";
@@ -21,7 +22,7 @@ type TrainerDayStatusViewProps = {
   statuses: TrainerDayStatus[];
   busy?: boolean;
   error?: string | null;
-  onSetStatus: (status: DayStatus) => void;
+  onSetStatus: (status: DayStatus) => void | Promise<void>;
   onRetry?: () => void;
 };
 
@@ -47,6 +48,7 @@ export function TrainerDayStatusView({
   onSetStatus,
   onRetry,
 }: TrainerDayStatusViewProps) {
+  const [pendingStatus, setPendingStatus] = React.useState<DayStatus | null>(null);
   const isOff = myStatus === "off";
   const dateLabel = date === todayIso() ? `Today, ${formatDayLabel(date)}` : formatDayLabel(date);
 
@@ -82,15 +84,20 @@ export function TrainerDayStatusView({
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2" role="group" aria-label="Set today's availability">
           <Button
             type="button"
             size="sm"
-            variant={isOff ? "outline" : "default"}
+            variant="outline"
             aria-pressed={!isOff}
             disabled={busy}
-            onClick={() => onSetStatus("present")}
-            className="gap-1.5"
+            onClick={() => setPendingStatus("present")}
+            className={cn(
+              "gap-1.5 transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
+              !isOff
+                ? "border-[#BFE3CC] bg-[#ECFDF3] text-[#137A4B] shadow-xs hover:border-[#A9D8BA] hover:bg-[#E3F7EB] hover:text-[#0F6A40]"
+                : "border-[#D8DEE6] bg-[#FAFBFC] text-[#52606D] hover:border-[#BFE3CC] hover:bg-[#F3FBF6] hover:text-[#137A4B]",
+            )}
           >
             <CalendarCheck className="size-3.5" />
             I&apos;m present
@@ -98,11 +105,16 @@ export function TrainerDayStatusView({
           <Button
             type="button"
             size="sm"
-            variant={isOff ? "default" : "outline"}
+            variant="outline"
             aria-pressed={isOff}
             disabled={busy}
-            onClick={() => onSetStatus("off")}
-            className="gap-1.5"
+            onClick={() => setPendingStatus("off")}
+            className={cn(
+              "gap-1.5 transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
+              isOff
+                ? "border-[#EBC7BE] bg-[#FDF1EE] text-[#9B3A2A] shadow-xs hover:border-[#DEB1A6] hover:bg-[#F9E7E2] hover:text-[#873323]"
+                : "border-[#D8DEE6] bg-[#FAFBFC] text-[#52606D] hover:border-[#EBC7BE] hover:bg-[#FDF6F4] hover:text-[#9B3A2A]",
+            )}
           >
             <CircleOff className="size-3.5" />
             I&apos;m off today
@@ -110,6 +122,7 @@ export function TrainerDayStatusView({
         </div>
       </div>
 
+      {busy && <p role="status" className="mt-3 text-sm text-[#6F6F6F]">Updating availability…</p>}
       {error && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#F3C9C2] bg-[#FEF4F2] px-3 py-2 text-sm text-[#9B3A2A]">
           <span className="flex-1">{error}</span>
@@ -156,6 +169,20 @@ export function TrainerDayStatusView({
           </ul>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={pendingStatus !== null}
+        title={pendingStatus === "off" ? "Mark yourself off today?" : "Mark yourself present?"}
+        description={pendingStatus === "off"
+          ? "Your open tickets may be transferred or queued for an administrator immediately."
+          : "New tickets can be assigned to you again and current queued tickets may be routed to you. Existing transfers are kept."}
+        confirmLabel={pendingStatus === "off" ? "Confirm off" : "Confirm present"}
+        tone={pendingStatus === "off" ? "danger" : "default"}
+        onCancel={() => setPendingStatus(null)}
+        onConfirm={async () => {
+          if (pendingStatus) await onSetStatus(pendingStatus);
+          setPendingStatus(null);
+        }}
+      />
     </section>
   );
 }
@@ -168,6 +195,8 @@ export function TrainerDayStatus({ classId }: { classId: string }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [canSetStatus, setCanSetStatus] = React.useState(true);
 
   React.useEffect(() => {
     if (!classId) return;
@@ -175,11 +204,15 @@ export function TrainerDayStatus({ classId }: { classId: string }) {
 
     async function load() {
       try {
+        setLoading(true);
         setError(null);
-        const [me, mine, classRows] = await Promise.all([
-          profileApi.me().catch(() => null),
-          handoverApi.getMyStatus(date).catch(() => null),
-          handoverApi.listClassStatus(classId, date).catch(() => []),
+        const me = await profileApi.me();
+        if (cancelled) return;
+        if (me.role === "teaching_assistant") { setCanSetStatus(false); return; }
+        setCanSetStatus(true);
+        const [mine, classRows] = await Promise.all([
+          handoverApi.getMyStatus(date),
+          handoverApi.listClassStatus(classId, date),
         ]);
         if (cancelled) return;
         const resolvedMine = mine;
@@ -195,6 +228,8 @@ export function TrainerDayStatus({ classId }: { classId: string }) {
         if (!cancelled) {
           setError(cause instanceof Error ? cause.message : "Could not load trainer status.");
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -205,7 +240,7 @@ export function TrainerDayStatus({ classId }: { classId: string }) {
   }, [classId, date, reloadKey]);
 
   async function setStatus(next: DayStatus) {
-    if (next === myStatus || busy) return;
+    if (busy || loading || !canSetStatus) return;
     const previous = myStatus;
     setBusy(true);
     setError(null);
@@ -245,15 +280,16 @@ export function TrainerDayStatus({ classId }: { classId: string }) {
     }
   }
 
+  if (!canSetStatus) return null;
   return (
     <TrainerDayStatusView
       date={date}
       myId={myId}
       myStatus={myStatus}
       statuses={statuses}
-      busy={busy}
+      busy={busy || loading}
       error={error}
-      onSetStatus={(next) => void setStatus(next)}
+      onSetStatus={setStatus}
       onRetry={() => setReloadKey((value) => value + 1)}
     />
   );

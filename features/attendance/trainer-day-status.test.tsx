@@ -39,6 +39,8 @@ describe("TrainerDayStatusView", () => {
       />,
     );
 
+    expect(html).toContain("h-7");
+    expect(html).toContain("role=\"group\"");
     expect(html).toContain("You are marked");
     expect(html).toContain("PRESENT");
     expect(html).toContain("Tickets from your classes stay yours.");
@@ -103,11 +105,52 @@ describe("TrainerDayStatusView", () => {
       offButton?.click();
     });
 
+    expect(onSetStatus).not.toHaveBeenCalled();
+    const confirm = Array.from(document.querySelectorAll("button")).find(button => button.textContent === "Confirm off");
+    await act(async () => confirm?.click());
     expect(onSetStatus).toHaveBeenCalledWith("off");
 
     act(() => {
       root.unmount();
     });
     host.remove();
+  });
+
+  it("uses soft selected colors and smooth interaction feedback", () => {
+    const presentHost = document.createElement("div");
+    presentHost.innerHTML = renderToStaticMarkup(
+      <TrainerDayStatusView
+        date="2026-11-09"
+        myId="trainer-1"
+        myStatus="present"
+        statuses={statuses}
+        onSetStatus={() => {}}
+      />,
+    );
+    const presentButton = Array.from(
+      presentHost.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("I'm present"));
+
+    expect(presentButton?.className).toContain("bg-[#ECFDF3]");
+    expect(presentButton?.className).not.toContain("bg-emerald-700");
+    expect(presentButton?.className).toContain("active:scale-[0.98]");
+
+    const offHost = document.createElement("div");
+    offHost.innerHTML = renderToStaticMarkup(
+      <TrainerDayStatusView
+        date="2026-11-09"
+        myId="trainer-1"
+        myStatus="off"
+        statuses={statuses}
+        onSetStatus={() => {}}
+      />,
+    );
+    const offButton = Array.from(offHost.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("I'm off today"),
+    );
+
+    expect(offButton?.className).toContain("bg-[#FDF1EE]");
+    expect(offButton?.className).not.toContain("bg-[#A94332]");
+    expect(offButton?.className).toContain("active:scale-[0.98]");
   });
 });

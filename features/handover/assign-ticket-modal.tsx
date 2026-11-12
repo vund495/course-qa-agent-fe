@@ -10,6 +10,7 @@ import {
   handoverApi,
   todayIso,
   type AdminQueueItem,
+  type ClassAssistant,
   type TrainerDayStatus,
 } from "@/lib/handover-api";
 
@@ -25,6 +26,7 @@ export function AssignTicketModal({
   onAssigned?: () => void;
 }) {
   const [trainers, setTrainers] = React.useState<TrainerDayStatus[]>([]);
+  const [assistants, setAssistants] = React.useState<ClassAssistant[]>([]);
   const [targetId, setTargetId] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -37,14 +39,25 @@ export function AssignTicketModal({
     setLoading(true);
     setError(null);
     setTargetId("");
-    handoverApi
-      .listClassStatus(item.class_id, todayIso())
-      .then((rows) => {
-        if (!cancelled) setTrainers(rows);
+    setTrainers([]);
+    setAssistants([]);
+    Promise.all([
+      handoverApi.listClassStatus(item.class_id, todayIso()),
+      handoverApi.listClassAssistants(item.class_id),
+    ])
+      .then(([rows, assignedAssistants]) => {
+        if (!cancelled) {
+          setTrainers(rows);
+          setAssistants(assignedAssistants);
+        }
       })
       .catch((cause) => {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : "Could not load class trainers.");
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not load class staff.",
+          );
         }
       })
       .finally(() => {
@@ -55,24 +68,49 @@ export function AssignTicketModal({
     };
   }, [isOpen, item]);
 
-  const options: AppSelectOption[] = trainers.map((row) => {
-    const isCurrentOwner = row.trainer_id === item?.owner_trainer_id;
-    const isOff = row.status === "off";
-    return {
-      value: row.trainer_id,
-      label: `${row.trainer_name}${isCurrentOwner ? " (current owner)" : ""}`,
-      description: isOff
-        ? "Off today"
-        : isCurrentOwner
-          ? "Already owns this ticket"
-          : "Available today",
-      disabled: isOff || isCurrentOwner,
-    };
-  });
+  const options: AppSelectOption[] = [
+    ...trainers.map((row) => {
+      const isCurrentOwner = row.trainer_id === item?.owner_trainer_id;
+      const isOff = row.status === "off";
+      return {
+        value: row.trainer_id,
+        label: `${row.trainer_name}${isCurrentOwner ? " (current owner)" : ""}`,
+        description: isOff
+          ? "Off today"
+          : isCurrentOwner
+            ? "Already owns this ticket"
+            : "Available today",
+        disabled: isOff || isCurrentOwner,
+      };
+    }),
+    ...assistants
+      .filter(
+        (assistant) =>
+          !trainers.some((trainer) => trainer.trainer_id === assistant.id),
+      )
+      .map((assistant) => {
+        const isCurrentOwner = assistant.id === item?.owner_trainer_id;
+        return {
+          value: assistant.id,
+          label: `${assistant.name}${isCurrentOwner ? " (current owner)" : ""}`,
+          description: isCurrentOwner
+            ? "Already owns this ticket"
+            : "Assigned teaching assistant",
+          disabled: isCurrentOwner,
+        };
+      }),
+  ];
 
   async function assign(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!item || !targetId || busy) return;
+    if (
+      !item ||
+      !targetId ||
+      busy ||
+      loading ||
+      !options.some((option) => option.value === targetId && !option.disabled)
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -81,7 +119,8 @@ export function AssignTicketModal({
       onAssigned?.();
       onClose();
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Could not assign the ticket.";
+      const message =
+        cause instanceof Error ? cause.message : "Could not assign the ticket.";
       setError(message);
       toast.error(message);
     } finally {
@@ -92,7 +131,7 @@ export function AssignTicketModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       title="Assign this ticket"
       subtitle={item ? `${item.class_code} · ${item.student_name}` : undefined}
       widthClass="max-w-md"
@@ -108,20 +147,24 @@ export function AssignTicketModal({
             value={targetId}
             onValueChange={setTargetId}
             options={options}
-            placeholder={loading ? "Loading trainers…" : "Choose a trainer"}
+            placeholder={
+              loading ? "Loading class staff…" : "Choose a trainer or assistant"
+            }
             disabled={loading || options.every((option) => option.disabled)}
-            aria-label="Trainer to assign this ticket to"
+            aria-label="Trainer or assistant to assign this ticket to"
           />
         </label>
 
         <p className="text-xs text-[#6F6F6F]">
-          Only trainers of {item?.class_code ?? "this class"} are listed. Trainers marked off today
-          and the current owner cannot be chosen.
+          Only trainers and assigned teaching assistants of{" "}
+          {item?.class_code ?? "this class"} are listed. Trainers marked off
+          today and the current owner cannot be chosen.
         </p>
 
         {!loading && options.length === 0 && (
           <p className="text-sm text-[#9B3A2A]">
-            This class has no other trainer available for a manual assignment.
+            This class has no trainer or assigned assistant available for a
+            manual assignment.
           </p>
         )}
         {error && (
@@ -131,10 +174,19 @@ export function AssignTicketModal({
         )}
 
         <div className="flex justify-end gap-2 border-t border-[#F0F0F0] pt-4">
-          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={busy}
+          >
             Cancel
           </Button>
-          <Button type="submit" disabled={!targetId || busy} className="gap-1.5">
+          <Button
+            type="submit"
+            disabled={!targetId || busy || loading}
+            className="gap-1.5"
+          >
             <UserCheck className="size-3.5" />
             {busy ? "Assigning…" : "Assign ticket"}
           </Button>

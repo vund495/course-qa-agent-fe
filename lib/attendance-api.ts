@@ -50,6 +50,14 @@ export type ClassSession = {
   note: string | null;
   student_count: number;
   marked_count: number;
+  is_holiday?: boolean;
+  holiday_name?: string | null;
+  trainer_on_leave?: boolean;
+  trainer_leave?: {
+    id: string; date_from: string; date_to: string;
+    reason_type: string | null; reason_details: string | null;
+    target_trainer_id: string | null; target_trainer_name: string | null;
+  } | null;
 };
 
 export type CreateSessionBody = {
@@ -141,7 +149,7 @@ export type StudentScheduleHoliday = {
   scope: HolidayScope;
 };
 
-export type StudentScheduleSession = {
+export type StudentScheduleSession = Pick<ClassSession, "is_holiday" | "holiday_name" | "trainer_on_leave" | "trainer_leave"> & {
   id: string;
   date: string; // YYYY-MM-DD
   start_at: string; // ISO datetime

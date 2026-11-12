@@ -9,6 +9,7 @@ import {
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { AttendanceSummaryRow } from "@/lib/attendance-api";
@@ -206,17 +207,19 @@ export function AttendanceSummaryTable({
           {/* Custom Date Pickers */}
           {range === "custom" && (
             <div className="flex items-center gap-1.5 text-xs">
-              <input
-                type="date"
+              <DateInput
+                aria-label="Custom range from"
                 value={customFrom}
-                onChange={(e) => setCustomFrom(e.target.value)}
+                max={customTo}
+                onChange={setCustomFrom}
                 className="rounded border border-[#DADADA] bg-white px-2 py-1 text-xs"
               />
               <span className="text-[#8C8C8C]">–</span>
-              <input
-                type="date"
+              <DateInput
+                aria-label="Custom range to"
                 value={customTo}
-                onChange={(e) => setCustomTo(e.target.value)}
+                min={customFrom}
+                onChange={setCustomTo}
                 className="rounded border border-[#DADADA] bg-white px-2 py-1 text-xs"
               />
               <Button size="xs" variant="outline" onClick={handleCustomApply}>

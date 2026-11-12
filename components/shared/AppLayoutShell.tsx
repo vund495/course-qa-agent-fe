@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/shared/Sidebar";
 import { MobileNav } from "@/components/shared/MobileNav";
 import { ProfileProvider } from "@/features/profile/profile-context";
 import { TicketNotificationsProvider } from "@/features/tickets/ticket-notifications";
+import { TrainerLeaveNotifications } from "@/features/handover/trainer-leave-notifications";
 
 /**
  * Plain layout shell for the matched route.
@@ -36,6 +37,7 @@ export function AppLayoutShell({ children }: { children: React.ReactNode }) {
           <div className="flex h-screen flex-col bg-[#E7EDF5] overflow-hidden lg:flex-row">
             {/* Below lg the rail is hidden, so MobileNav owns the header. */}
             <TicketNotificationsProvider audience={role === "trainer" || role === "student" ? role : null}>
+              <TrainerLeaveNotifications enabled={role === "trainer"} />
               <>
                 <MobileNav role={role} />
 

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { CalendarPlus, ClipboardList } from "lucide-react";
 import { TicketCitations } from './ticket-citations';
 import { TicketsInboxLayout } from "@/components/shared/TicketsInboxLayout";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
@@ -11,8 +10,6 @@ import { cn } from "@/lib/utils";
 import { formatHandoverTime, handoverReasonLabel, isSystemReply } from "@/lib/handover-api";
 import { profileApi } from "@/features/profile/api";
 import { HandoverInbox } from "@/features/handover/handover-inbox";
-import { LeaveRequestModal } from "@/features/handover/leave-request-modal";
-import { LeaveRequestsModal } from "@/features/handover/leave-requests-modal";
 import { TicketOwnerBadge } from "./ticket-owner-badge";
 import {
   addTicketReply,
@@ -82,8 +79,6 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
       : new URLSearchParams(window.location.search).get("ticket_id"),
   );
   const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
-  const [leaveModalOpen, setLeaveModalOpen] = React.useState(false);
-  const [leaveListOpen, setLeaveListOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -210,8 +205,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
         status: item.status,
       }));
   }, [counts, classes]);
-  const leaveClass =
-    classOptions.find((item) => item.id === classId) ?? classOptions[0] ?? null;
+
 
   const query = search.trim().toLowerCase();
   const visible = error
@@ -429,25 +423,6 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                 }
               />
             </label>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setLeaveModalOpen(true)}
-              className="gap-1"
-            >
-              <CalendarPlus className="size-3.5" />
-              Request leave
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setLeaveListOpen(true)}
-              className="gap-1 border-[#DEE8F2]/50 bg-transparent text-[#F5F9FF] hover:bg-white/10 hover:text-white"
-            >
-              <ClipboardList className="size-3.5" />
-              Leave requests
-            </Button>
           </div>
         }
         searchValue={search}
@@ -709,18 +684,6 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
             </div>
           )
         }
-      />
-      <LeaveRequestModal
-        isOpen={leaveModalOpen}
-        onClose={() => setLeaveModalOpen(false)}
-        classId={leaveClass?.id ?? ""}
-        classLabel={leaveClass ? `${leaveClass.code} · ${leaveClass.name}` : undefined}
-        onCreated={() => setRetry((value) => value + 1)}
-      />
-      <LeaveRequestsModal
-        isOpen={leaveListOpen}
-        onClose={() => setLeaveListOpen(false)}
-        onChanged={() => setRetry((value) => value + 1)}
       />
     </div>
   );
