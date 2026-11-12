@@ -15,47 +15,54 @@ import {
   Save,
   HelpCircle,
 } from "lucide-react";
+import { Reveal, SkeletonCard, SkeletonLine } from "@/components/shared/page-skeleton";
+import { ClassPageHeader } from "@/components/shared/ClassPageHeader";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const PROFICIENCY_LEVELS: {
   level: SkillLevel;
   name: string;
-  badgeBg: string;
-  badgeText: string;
+  badgeClass: string;
   defaultThreshold: number;
 }[] = [
   {
     level: "NOVICE",
     name: "Novice",
-    badgeBg: "bg-slate-100",
-    badgeText: "text-slate-800 border-slate-300",
+    badgeClass: "bg-muted text-foreground border-border",
     defaultThreshold: 80,
   },
   {
     level: "BEGINNER",
     name: "Beginner",
-    badgeBg: "bg-blue-50",
-    badgeText: "text-blue-800 border-blue-200",
+    badgeClass: "bg-[var(--brand-soft)] text-[var(--brand-ink)] border-[var(--brand-line)]",
     defaultThreshold: 75,
   },
   {
     level: "COMPETENT",
     name: "Competent",
-    badgeBg: "bg-emerald-50",
-    badgeText: "text-emerald-800 border-emerald-200",
+    badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
     defaultThreshold: 70,
   },
   {
     level: "PROFICIENT",
     name: "Proficient",
-    badgeBg: "bg-amber-50",
-    badgeText: "text-amber-800 border-amber-200",
+    badgeClass: "bg-muted text-foreground border-border",
     defaultThreshold: 65,
   },
   {
     level: "MASTER",
     name: "Master",
-    badgeBg: "bg-purple-50",
-    badgeText: "text-purple-800 border-purple-200",
+    badgeClass: "bg-muted text-foreground border-border",
     defaultThreshold: 60,
   },
 ];
@@ -93,13 +100,11 @@ export default function TeacherClassSkillsPage() {
 
   // Auto-generation State
   const [generatingSkills, setGeneratingSkills] = React.useState(false);
+  const [isConfirmingGenerate, setIsConfirmingGenerate] = React.useState(false);
 
   const handleAutoGenerateSkills = async () => {
     if (!classId) return;
-    const confirmGenerate = window.confirm(
-      "Do you want to automatically synthesize a 5-level Skill Taxonomy and Rubrics based on the course description and metadata?"
-    );
-    if (!confirmGenerate) return;
+    setIsConfirmingGenerate(false);
 
     try {
       setGeneratingSkills(true);
@@ -121,45 +126,21 @@ export default function TeacherClassSkillsPage() {
   const fetchSkills = React.useCallback(async () => {
     if (!classId) return;
     try {
-      setLoading(true);
       setError(null);
       const data = await skillApi.listClassSkills(classId);
       setSkills(data);
-      if (data.length > 0 && !selectedSkillId) {
-        setSelectedSkillId(data[0].id);
-      }
+      setSelectedSkillId((prev) => prev ?? data[0]?.id ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load skills.");
     } finally {
       setLoading(false);
     }
-  }, [classId, selectedSkillId]);
+  }, [classId]);
 
   React.useEffect(() => {
-    let active = true;
-    if (!classId) return;
-
-    skillApi
-      .listClassSkills(classId)
-      .then((data) => {
-        if (!active) return;
-        setSkills(data);
-        if (data.length > 0) {
-          setSelectedSkillId((prev) => prev || data[0].id);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to load skills.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [classId]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch; state is only set after the await.
+    void fetchSkills();
+  }, [fetchSkills]);
 
   const selectedSkill = React.useMemo(() => {
     return skills.find((s) => s.id === selectedSkillId) || skills[0] || null;
@@ -205,7 +186,7 @@ export default function TeacherClassSkillsPage() {
     if (!selectedSkill || !classId) return;
     const draft = currentRubricDrafts[level];
     if (!draft || !draft.description.trim()) {
-      alert("Please provide the evaluation scope description for this level.");
+      toast.error("Please provide the evaluation scope description for this level.");
       return;
     }
 
@@ -219,7 +200,7 @@ export default function TeacherClassSkillsPage() {
       setTimeout(() => setSaveSuccess(null), 3000);
       await fetchSkills();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to save rubric.");
+      toast.error(err instanceof Error ? err.message : "Failed to save rubric.");
     } finally {
       setSavingLevel(null);
     }
@@ -228,7 +209,7 @@ export default function TeacherClassSkillsPage() {
   const handleCreateSkill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSkillCode.trim() || !newSkillName.trim()) {
-      alert("Skill code and name are required.");
+      toast.error("Skill code and name are required.");
       return;
     }
 
@@ -252,7 +233,7 @@ export default function TeacherClassSkillsPage() {
       await fetchSkills();
       setSelectedSkillId(created.id);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to create skill.");
+      toast.error(err instanceof Error ? err.message : "Failed to create skill.");
     } finally {
       setCreateLoading(false);
     }
@@ -260,41 +241,38 @@ export default function TeacherClassSkillsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+      <ClassPageHeader
+        title="Skills & Evaluation Rubrics"
+        subtitle="Define the skills tested in your quizzes and what each of the 5 mastery levels expects, from Novice to Master."
+        badge={
+          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-[#E5EFF8]">
+            Class Scoped
+          </span>
+        }
+        actions={
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900">Skills & Evaluation Rubrics</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-              Class Scoped
-            </span>
+            <Button
+              type="button"
+              variant="brand"
+              onClick={() => setIsConfirmingGenerate(true)}
+              disabled={generatingSkills}
+              className="h-9 gap-1.5 px-3.5"
+            >
+              <Sparkles className={`h-4 w-4 ${generatingSkills ? "animate-spin" : ""}`} />
+              {generatingSkills ? "Synthesizing Rubrics..." : "Auto-generate Skills"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCreatingSkill(true)}
+              className="h-9 gap-1.5 border-white/25 bg-transparent px-3.5 text-white hover:bg-white/10 hover:text-white"
+            >
+              <Plus className="h-4 w-4" />
+              Add Skill
+            </Button>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
-            Define specific skills tested in your quizzes and describe what knowledge is expected at each
-            of the 5 mastery levels (Novice to Master).
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <button
-            type="button"
-            onClick={handleAutoGenerateSkills}
-            disabled={generatingSkills}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg text-sm font-medium hover:from-violet-700 hover:to-indigo-700 transition shadow-sm disabled:opacity-50"
-          >
-            <Sparkles className={`w-4 h-4 ${generatingSkills ? "animate-spin" : ""}`} />
-            {generatingSkills ? "Synthesizing Rubrics..." : "Auto-generate Skills"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsCreatingSkill(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Add Skill
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {error && (
         <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center gap-3">
@@ -303,39 +281,58 @@ export default function TeacherClassSkillsPage() {
         </div>
       )}
 
-      {/* Main Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Main Content Layout — both columns stretch to the same height so an
+          empty right panel never leaves the left card short. */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Left Column: Skill Navigation */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-fit">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-slate-500" />
+        <div className="lg:col-span-4 bg-white rounded-xl border border-border shadow-xs p-4 flex flex-col min-h-[420px]">
+          <div className="flex items-center justify-between pb-3 border-b border-hairline mb-3">
+            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-muted-foreground" />
               Course Skills ({skills.length})
             </h2>
           </div>
 
           {loading ? (
-            <div className="py-8 text-center text-sm text-slate-400">Loading skills...</div>
+            <div className="space-y-2" aria-hidden>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg border border-border p-3">
+                  <SkeletonLine className="h-4 w-16" />
+                  <SkeletonLine className="mt-2 h-4 w-3/4" />
+                  <SkeletonLine className="mt-1.5 h-3 w-full" />
+                </div>
+              ))}
+            </div>
           ) : skills.length === 0 ? (
-            <div className="py-8 text-center px-2">
-              <p className="text-sm text-slate-500">No skills defined for this course yet.</p>
-              <div className="mt-4 flex flex-col gap-2">
-                <button
+            <div className="flex flex-1 flex-col items-center justify-center px-2 py-8 text-center">
+              <EmptyState
+                icon={Layers}
+                title="No skills defined for this course yet."
+                description="Generate a 5-level rubric from the course description, or add a skill by hand."
+                className="border-0 px-0 py-0"
+              />
+              <div className="mt-4 flex w-full flex-col gap-2">
+                <Button
                   type="button"
-                  onClick={handleAutoGenerateSkills}
+                  variant="brand"
+                  onClick={() => setIsConfirmingGenerate(true)}
                   disabled={generatingSkills}
-                  className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg text-xs font-semibold hover:from-violet-700 hover:to-indigo-700 transition shadow-sm disabled:opacity-50"
+                  size="sm"
+                  className="w-full"
                 >
                   <Sparkles className={`w-3.5 h-3.5 ${generatingSkills ? "animate-spin" : ""}`} />
                   {generatingSkills ? "Synthesizing..." : "Auto-generate 5-Level Rubrics"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setIsCreatingSkill(true)}
-                  className="w-full text-xs text-slate-600 hover:text-slate-900 font-medium py-1"
+                  className="w-full"
                 >
-                  + Create manually
-                </button>
+                  <Plus className="w-3.5 h-3.5" />
+                  Create manually
+                </Button>
               </div>
             </div>
           ) : (
@@ -348,21 +345,21 @@ export default function TeacherClassSkillsPage() {
                     onClick={() => setSelectedSkillId(s.id)}
                     className={`w-full text-left p-3 rounded-lg border transition ${
                       isSelected
-                        ? "bg-indigo-50/70 border-indigo-300 text-indigo-950 font-medium shadow-xs"
-                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                        ? "bg-[var(--brand-soft)] border-[var(--brand-line)] text-[var(--brand-ink)] font-medium shadow-xs"
+                        : "bg-white border-border text-foreground hover:bg-muted"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-muted text-foreground">
                         {s.code}
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase">
                         {s.category}
                       </span>
                     </div>
                     <div className="text-sm font-semibold mt-1.5 line-clamp-1">{s.name}</div>
                     {s.description && (
-                      <div className="text-xs text-slate-500 mt-1 line-clamp-1">{s.description}</div>
+                      <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{s.description}</div>
                     )}
                   </button>
                 );
@@ -372,24 +369,26 @@ export default function TeacherClassSkillsPage() {
         </div>
 
         {/* Right Column: Skill Detail & 5-Level Rubrics */}
-        <div className="lg:col-span-8 space-y-6">
-          {selectedSkill ? (
-            <>
+        <div className="lg:col-span-8 flex flex-col min-h-[420px]">
+          {loading ? (
+            <SkeletonCard className="h-full min-h-[420px]" />
+          ) : selectedSkill ? (
+            <Reveal className="space-y-6">
               {/* Skill Header */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <div className="bg-white rounded-xl border border-border shadow-xs p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-muted text-foreground border border-border">
                       {selectedSkill.code}
                     </span>
-                    <h2 className="text-xl font-bold text-slate-900">{selectedSkill.name}</h2>
+                    <h2 className="text-xl font-bold text-foreground">{selectedSkill.name}</h2>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-600">
+                  <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground">
                     Category: {selectedSkill.category}
                   </span>
                 </div>
                 {selectedSkill.description && (
-                  <p className="text-sm text-slate-600 mt-3">{selectedSkill.description}</p>
+                  <p className="text-sm text-muted-foreground mt-3">{selectedSkill.description}</p>
                 )}
               </div>
 
@@ -403,11 +402,11 @@ export default function TeacherClassSkillsPage() {
               {/* 5-Level Rubric Accordions */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Award className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Award className="w-4 h-4 text-[var(--brand)]" />
                     Proficiency Rubrics (Novice to Master)
                   </h3>
-                  <div className="text-xs text-slate-500 flex items-center gap-1">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <HelpCircle className="w-3.5 h-3.5" />
                     Threshold: % correct required to pass level gate
                   </div>
@@ -424,7 +423,7 @@ export default function TeacherClassSkillsPage() {
                   return (
                     <div
                       key={p.level}
-                      className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                      className="bg-white rounded-xl border border-border shadow-xs overflow-hidden"
                     >
                       {/* Accordion Header */}
                       <button
@@ -435,24 +434,24 @@ export default function TeacherClassSkillsPage() {
                             [p.level]: !prev[p.level],
                           }))
                         }
-                        className="w-full px-5 py-4 flex items-center justify-between bg-slate-50/50 hover:bg-slate-50 transition border-b border-slate-100"
+                        className="w-full px-5 py-4 flex items-center justify-between bg-muted/50 hover:bg-muted transition border-b border-hairline"
                       >
                         <div className="flex items-center gap-3">
                           <span
-                            className={`px-2.5 py-1 rounded text-xs font-bold border ${p.badgeBg} ${p.badgeText}`}
+                            className={`px-2.5 py-1 rounded text-xs font-bold border ${p.badgeClass}`}
                           >
                             {p.level}
                           </span>
-                          <span className="text-sm font-semibold text-slate-800">{p.name} Level</span>
+                          <span className="text-sm font-semibold text-foreground">{p.name} Level</span>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className="text-xs font-medium text-slate-500">
-                            Passing: <strong className="text-slate-800">{draft.threshold_pct}%</strong>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Passing: <strong className="text-foreground">{draft.threshold_pct}%</strong>
                           </span>
                           {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-slate-400" />
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
                           ) : (
-                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
                           )}
                         </div>
                       </button>
@@ -461,10 +460,10 @@ export default function TeacherClassSkillsPage() {
                       {isExpanded && (
                         <div className="p-5 space-y-4">
                           <div>
-                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                            <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1.5">
                               Tested Understanding / Evaluation Scope
                             </label>
-                            <p className="text-xs text-slate-500 mb-2">
+                            <p className="text-xs text-muted-foreground mb-2">
                               Describe what knowledge depth or comprehension level is tested for this
                               skill at the {p.name} level.
                             </p>
@@ -475,13 +474,13 @@ export default function TeacherClassSkillsPage() {
                                 handleRubricChange(p.level, "description", e.target.value)
                               }
                               placeholder={`e.g. Can recognize and explain basic syntax, keywords, and simple rules of ${selectedSkill.name}.`}
-                              className="w-full text-sm rounded-lg border border-slate-300 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                              className="w-full text-sm rounded-lg border border-input p-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)] bg-white"
                             />
                           </div>
 
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-slate-100">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-hairline">
                             <div className="flex items-center gap-2">
-                              <label className="text-xs font-semibold text-slate-600">
+                              <label className="text-xs font-semibold text-muted-foreground">
                                 Pass Threshold:
                               </label>
                               <input
@@ -496,20 +495,21 @@ export default function TeacherClassSkillsPage() {
                                     parseInt(e.target.value, 10) || 70
                                   )
                                 }
-                                className="w-20 text-sm font-semibold text-center rounded border border-slate-300 py-1 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-20 text-sm font-semibold text-center rounded border border-input py-1 px-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
                               />
-                              <span className="text-xs text-slate-500">%</span>
+                              <span className="text-xs text-muted-foreground">%</span>
                             </div>
 
-                            <button
+                            <Button
                               type="button"
+                              variant="brand"
+                              size="sm"
                               disabled={isSaving}
                               onClick={() => handleSaveRubric(p.level)}
-                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 disabled:opacity-50 transition"
                             >
                               <Save className="w-3.5 h-3.5" />
                               {isSaving ? "Saving..." : `Save ${p.name} Rubric`}
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -517,9 +517,9 @@ export default function TeacherClassSkillsPage() {
                   );
                 })}
               </div>
-            </>
+            </Reveal>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-500">
+            <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-white p-12 text-center text-sm text-muted-foreground">
               Select or create a skill to view and configure its rubrics.
             </div>
           )}
@@ -529,15 +529,15 @@ export default function TeacherClassSkillsPage() {
       {/* New Skill Modal */}
       {isCreatingSkill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <h2 className="text-lg font-bold text-slate-900 mb-1">Add Course Skill</h2>
-            <p className="text-xs text-slate-500 mb-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
+            <h2 className="text-lg font-bold text-foreground mb-1">Add Course Skill</h2>
+            <p className="text-xs text-muted-foreground mb-4">
               Add a skill domain tailored for your course syllabus and quiz evaluation.
             </p>
 
             <form onSubmit={handleCreateSkill} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
                   Skill Code *
                 </label>
                 <input
@@ -546,12 +546,12 @@ export default function TeacherClassSkillsPage() {
                   placeholder="e.g. PY-CONTROL-FLOW"
                   value={newSkillCode}
                   onChange={(e) => setNewSkillCode(e.target.value.toUpperCase())}
-                  className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full text-sm rounded-lg border border-input px-3 py-2 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
                   Skill Name *
                 </label>
                 <input
@@ -560,12 +560,12 @@ export default function TeacherClassSkillsPage() {
                   placeholder="e.g. Python Control Flow & Loops"
                   value={newSkillName}
                   onChange={(e) => setNewSkillName(e.target.value)}
-                  className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full text-sm rounded-lg border border-input px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
                   Category
                 </label>
                 <input
@@ -573,12 +573,12 @@ export default function TeacherClassSkillsPage() {
                   placeholder="e.g. PYTHON"
                   value={newSkillCategory}
                   onChange={(e) => setNewSkillCategory(e.target.value.toUpperCase())}
-                  className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full text-sm rounded-lg border border-input px-3 py-2 uppercase focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
                   Description
                 </label>
                 <textarea
@@ -586,30 +586,47 @@ export default function TeacherClassSkillsPage() {
                   placeholder="Optional brief description of what this skill covers..."
                   value={newSkillDesc}
                   onChange={(e) => setNewSkillDesc(e.target.value)}
-                  className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full text-sm rounded-lg border border-input px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline">
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setIsCreatingSkill(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 transition"
                 >
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createLoading}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
-                >
+                </Button>
+                <Button type="submit" variant="brand" disabled={createLoading}>
                   {createLoading ? "Creating..." : "Create Skill"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <Dialog open={isConfirmingGenerate} onOpenChange={setIsConfirmingGenerate}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate skills and rubrics</DialogTitle>
+            <DialogDescription>
+              Synthesize a 5-level skill taxonomy and rubrics from this course&apos;s description and
+              metadata? Existing skills stay as they are; the generated ones are added alongside them.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsConfirmingGenerate(false)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="brand" onClick={() => void handleAutoGenerateSkills()}>
+              <Sparkles className="w-4 h-4" />
+              Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
