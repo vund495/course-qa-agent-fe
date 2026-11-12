@@ -505,7 +505,7 @@ export function MonthSchedule({
           <div className="space-y-3">
             <header className="flex flex-wrap items-start justify-between gap-2 border-b border-[#F0F0F0] pb-2">
               <div>
-                <h3 className="text-sm font-semibold text-[#111111]">
+                <h3 className="text-[14px] font-bold text-[#111111]">
                   {formatFullDate(selectedDate)}
                 </h3>
                 <p className="mt-0.5 text-[11px] text-[#5A5A5A]">

@@ -240,7 +240,7 @@ export default function TeacherClassSkillsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Skills & Evaluation Rubrics"
         subtitle="Define the skills tested in your quizzes and what each of the 5 mastery levels expects, from Novice to Master."
@@ -283,9 +283,10 @@ export default function TeacherClassSkillsPage() {
 
       {/* Main Content Layout — both columns stretch to the same height so an
           empty right panel never leaves the left card short. */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1">
         {/* Left Column: Skill Navigation */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-border shadow-xs p-4 flex flex-col min-h-[420px]">
+        <div className="lg:col-span-4 rounded-xl border border-border shadow-xs p-4 flex flex-col min-h-[420px]">
           <div className="flex items-center justify-between pb-3 border-b border-hairline mb-3">
             <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
               <Layers className="w-4 h-4 text-muted-foreground" />
@@ -524,6 +525,7 @@ export default function TeacherClassSkillsPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* New Skill Modal */}

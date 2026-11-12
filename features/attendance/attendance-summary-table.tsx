@@ -150,7 +150,7 @@ export function AttendanceSummaryTable({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0F0F0] pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-[#111111]">Attendance Summary</h3>
+            <h3 className="text-[14px] font-bold text-[#111111]">Attendance Summary</h3>
             {totalSessions !== undefined && (
               <span className="rounded bg-[#FAFAFA] border border-[#E5E5E5] px-2 py-0.5 text-xs text-[#5A5A5A] font-medium">
                 {totalSessions} {totalSessions === 1 ? "session" : "sessions"}

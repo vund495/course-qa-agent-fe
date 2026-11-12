@@ -533,7 +533,7 @@ export function ClassMaterials({
       <div className="rounded-lg border border-[#DADADA] bg-white px-4 py-3.5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 id="class-materials-heading" className="text-[15px] font-bold text-[#111111]">
+            <h3 id="class-materials-heading" className="text-[14px] font-bold text-[#111111]">
               Materials
             </h3>
             <p className="mt-0.5 text-[13px] text-[#5A5A5A]">

@@ -40,7 +40,7 @@ export function ClassRecord({
   return (
     <section
       aria-labelledby="class-overview-title"
-      className="relative isolate overflow-hidden rounded-xl border border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] shadow-[0_8px_24px_rgba(23,51,83,0.12)]"
+      className="relative isolate -mx-6 -mt-8 flex h-[92px] flex-col justify-center overflow-hidden border border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] shadow-[0_8px_24px_rgba(23,51,83,0.12)]"
     >
       <div
         aria-hidden="true"
@@ -53,7 +53,7 @@ export function ClassRecord({
           WebkitMaskImage: "linear-gradient(to right, transparent, black 46%)",
         }}
       />
-      <div className="relative z-10 flex flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:gap-6 md:px-5 md:py-5">
+      <div className="relative z-10 flex w-full flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-6 md:px-5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
             <span className="inline-flex items-center rounded-md border border-white/20 bg-white/10 px-2.5 py-1 text-[11.5px] font-bold tracking-[0.04em] text-[#E5EFF8]">
@@ -61,7 +61,7 @@ export function ClassRecord({
             </span>
             <h2
               id="class-overview-title"
-              className="max-w-full text-balance text-[26px] font-bold font-heading leading-tight text-white md:text-[28px]"
+              className="max-w-full text-balance text-[22px] font-bold font-heading leading-tight text-white md:text-[24px]"
             >
               {cls.name}
             </h2>
@@ -100,7 +100,7 @@ function ClassRecordSkeleton() {
   return (
     <section
       aria-hidden
-      className="overflow-hidden rounded-xl border border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] [--skeleton-sheen:rgba(255,255,255,0.08)]"
+      className="-mx-6 -mt-8 overflow-hidden border border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] [--skeleton-sheen:rgba(255,255,255,0.08)]"
     >
       <div className="flex flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:gap-6 md:px-5 md:py-5">
         <div className="min-w-0">

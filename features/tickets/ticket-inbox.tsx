@@ -367,7 +367,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       {(classError || countsError) && (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700">
           {classError || countsError}

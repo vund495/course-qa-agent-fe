@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PAGE_MAX_WIDTH } from "@/components/shared/PageShell";
 
 export interface CourseTabItem {
   id: string;
@@ -130,7 +129,7 @@ export function CourseTabs({
       {/* lg+: section row is centered in the content column. */}
       <div className="hidden lg:block">
         <div
-          className={`mx-auto flex h-10 w-full ${PAGE_MAX_WIDTH} items-center justify-center px-6`}
+          className="flex h-10 w-full items-center justify-center px-6"
         >
           <nav
             aria-label="Class sections"

@@ -114,9 +114,9 @@ export default function ClassMembersPage() {
   });
   const { items: pageMembers, page: safePage, pageCount } = paginate(filtered, page);
 
-  const headerActions = (
-    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-      <div className="flex items-center gap-1 rounded-lg border border-white/25 bg-white/10 p-1">
+  const panelToolbar = (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-1 rounded-lg border border-[#DADADA] bg-[#F7F7F7] p-1">
         {(["all", "students", "teachers"] as const).map((t) => (
           <button
             key={t}
@@ -125,7 +125,7 @@ export default function ClassMembersPage() {
               setPage(1);
             }}
             className={`h-7 px-3 text-[12px] font-medium rounded-md transition-all capitalize ${
-              tab === t ? "bg-white text-[#111111] shadow-sm" : "text-[#DEE8F2] hover:text-white"
+              tab === t ? "bg-white text-[#111111] shadow-sm" : "text-[#5A5A5A] hover:text-[#111111]"
             }`}
           >
             {t}
@@ -142,14 +142,14 @@ export default function ClassMembersPage() {
             setSearch(e.target.value);
             setPage(1);
           }}
-          className="h-9 w-full rounded-lg border border-white/25 bg-white py-1.5 pl-8 pr-3 text-[12.5px] outline-none focus:border-white sm:w-64"
+          className="h-9 w-full rounded-lg border border-[#DADADA] bg-white py-1.5 pl-8 pr-3 text-[12.5px] outline-none focus:border-[#111111] sm:w-64"
         />
       </div>
     </div>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Members"
         subtitle="Manage people and class access."
@@ -160,9 +160,10 @@ export default function ClassMembersPage() {
             </span>
           ) : undefined
         }
-        actions={headerActions}
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
+      {panelToolbar}
       {canReview && (
         <Reveal>
         <div className="bg-white border border-[#DADADA] rounded-lg overflow-hidden">
@@ -249,7 +250,7 @@ export default function ClassMembersPage() {
           </button>
         </div>
       ) : (
-        <Reveal>
+        <Reveal className="flex flex-1 flex-col">
         <MembersTable toolbar={null}>
           {filtered.length === 0 ? (
             <tr>
@@ -326,6 +327,7 @@ export default function ClassMembersPage() {
         )}
         </Reveal>
       )}
+      </div>
     </div>
   );
 }

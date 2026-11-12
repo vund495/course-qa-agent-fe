@@ -59,12 +59,13 @@ export function StudentQuizList({ classId }: { classId: string }) {
   }, [load]);
 
   return (
-    <div className="flex flex-1 flex-col gap-5">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Quizzes"
         subtitle="Timed assessments for this class. Your answers autosave while you work."
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-5 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       {error && (
         <div
           role="alert"
@@ -214,6 +215,7 @@ export function StudentQuizList({ classId }: { classId: string }) {
           })}
         </ul>
       )}
+      </div>
     </div>
   );
 }
