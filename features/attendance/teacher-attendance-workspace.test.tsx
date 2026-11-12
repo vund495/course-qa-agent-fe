@@ -2,12 +2,9 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import TeacherAttendancePage from "./page";
+import { TeacherAttendanceWorkspace } from "./teacher-attendance-workspace";
+import { profileApi } from "@/features/profile/api";
 import { attendanceApi, type ClassSession, type AttendanceSheet } from "@/lib/attendance-api";
-
-vi.mock("next/navigation", () => ({
-  useParams: () => ({ id: "11111111-1111-1111-1111-111111111111" }),
-}));
 
 vi.mock("@/features/profile/api", () => ({
   profileApi: {
@@ -44,7 +41,7 @@ vi.mock("@/lib/handover-api", async (importOriginal) => {
   };
 });
 
-describe("TeacherAttendancePage", () => {
+describe("TeacherAttendanceWorkspace", () => {
   let host: HTMLDivElement;
   let root: Root;
 
@@ -127,6 +124,7 @@ describe("TeacherAttendancePage", () => {
     document.body.append(host);
     root = createRoot(host);
     vi.restoreAllMocks();
+    vi.mocked(profileApi.me).mockResolvedValue({ id: "trainer-1", role: "trainer" } as Awaited<ReturnType<typeof profileApi.me>>);
   });
 
   afterEach(() => {
@@ -141,7 +139,7 @@ describe("TeacherAttendancePage", () => {
     vi.spyOn(attendanceApi, "summary").mockReturnValue(new Promise(() => {}));
 
     await act(async () => {
-      root.render(<TeacherAttendancePage />);
+      root.render(<TeacherAttendanceWorkspace classId="11111111-1111-1111-1111-111111111111" />);
     });
 
     const skeleton = host.querySelector('[data-testid="attendance-loading-skeleton"]');
@@ -153,7 +151,7 @@ describe("TeacherAttendancePage", () => {
     vi.spyOn(attendanceApi, "summary").mockResolvedValue(mockSummary);
 
     await act(async () => {
-      root.render(<TeacherAttendancePage />);
+      root.render(<TeacherAttendanceWorkspace classId="11111111-1111-1111-1111-111111111111" />);
     });
 
     const emptyBox = host.querySelector('[data-testid="attendance-empty-sessions"]');
@@ -166,7 +164,7 @@ describe("TeacherAttendancePage", () => {
     vi.spyOn(attendanceApi, "summary").mockRejectedValue(new Error("Connection refused"));
 
     await act(async () => {
-      root.render(<TeacherAttendancePage />);
+      root.render(<TeacherAttendanceWorkspace classId="11111111-1111-1111-1111-111111111111" />);
     });
 
     const errorState = host.querySelector('[data-testid="attendance-error-state"]');
@@ -181,9 +179,11 @@ describe("TeacherAttendancePage", () => {
     vi.spyOn(attendanceApi, "summary").mockResolvedValue(mockSummary);
 
     await act(async () => {
-      root.render(<TeacherAttendancePage />);
+      root.render(<TeacherAttendanceWorkspace classId="11111111-1111-1111-1111-111111111111" />);
     });
 
+    expect(host.textContent).toContain("Request leave");
+    expect(host.textContent).toContain("My leave requests");
     expect(host.textContent).toContain("Sessions (1)");
     expect(host.textContent).toContain("Nguyen Van A");
     const summaryContainer = host.querySelector('[data-testid="attendance-summary-container"]');
@@ -196,7 +196,7 @@ describe("TeacherAttendancePage", () => {
     vi.spyOn(attendanceApi, "summary").mockResolvedValue(mockSummary);
 
     await act(async () => {
-      root.render(<TeacherAttendancePage />);
+      root.render(<TeacherAttendanceWorkspace classId="11111111-1111-1111-1111-111111111111" />);
     });
 
     expect(host.textContent).toContain("Failed to load attendance sheet");

@@ -13,6 +13,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { PrerequisiteHint } from "@/components/shared/PrerequisiteHint";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { semesterDateRange } from "@/lib/semester";
+import { ClassAssistantManager } from "@/features/handover/class-assistant-manager";
 import { AdminAttendanceModal } from "@/features/attendance/admin-attendance-modal";
 
 const SEMESTER_OPTIONS: AppSelectOption[] = ["Fall", "Spring", "Summer"].map((semester) => ({
@@ -476,7 +477,7 @@ export default function AdminClassesPage() {
                         label={`Actions for class ${cls.code}`}
                         direction={idx === classPage.items.length - 1 ? "up" : "down"}
                         items={[
-                          { label: "Manage trainers", icon: <Users className="w-3.5 h-3.5" />, onSelect: () => { setManageClass(cls); setNewCoTrainer(""); setManagePrereqs((cls.prerequisites ?? []).map((p) => p.id)); } },
+                          { label: "Manage trainers & assistants", icon: <Users className="w-3.5 h-3.5" />, onSelect: () => { setManageClass(cls); setNewCoTrainer(""); setManagePrereqs((cls.prerequisites ?? []).map((p) => p.id)); } },
                           { label: "Attendance summary", icon: <CalendarCheck className="w-3.5 h-3.5" />, onSelect: () => setAttendanceClass(cls) },
                           isArchived(cls)
                             ? { label: "Restore class", onSelect: () => setPendingArchive(cls) }
@@ -636,8 +637,8 @@ export default function AdminClassesPage() {
       <Modal
         isOpen={manageClass !== null && pendingManageAction === null}
         onClose={() => setManageClass(null)}
-        title={`Trainers — ${manageClass?.code ?? ""}`}
-        subtitle="The primary trainer owns the class; co-trainers share access."
+        title={`Class staff — ${manageClass?.code ?? ""}`}
+        subtitle="Manage trainers and assigned teaching assistants for this class."
         widthClass="max-w-lg"
       >
         {manageClass && (
@@ -694,6 +695,7 @@ export default function AdminClassesPage() {
               </div>
             </div>
 
+            <ClassAssistantManager classId={String(manageClass.id)} />
             <div>
               <span className="block text-[13px] font-medium text-[#111111] mb-1.5">Prerequisites</span>
               <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-[#DADADA] p-2">

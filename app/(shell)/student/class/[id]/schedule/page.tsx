@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SkeletonCard, SkeletonLine } from "@/components/shared/page-skeleton";
 import { attendanceApi, type StudentSchedule } from "@/lib/attendance-api";
+import { ClassHolidayCalendar } from "@/features/attendance/class-holiday-calendar";
 import {
   MonthSchedule,
   ScheduleViewToggle,
@@ -208,6 +209,8 @@ export default function StudentSchedulePage() {
           </Button>
         </div>
       </section>
+
+      <ClassHolidayCalendar classId={classId} />
 
       {error && (
         <Alert

@@ -390,7 +390,7 @@ export function AttendanceSheet({
               <th className="py-2.5 px-3 w-10 text-center">#</th>
               <th className="py-2.5 px-3 w-28">Student Code</th>
               <th className="py-2.5 px-3 min-w-[150px]">Full Name</th>
-              <th className="py-2.5 px-3 min-w-[280px]">Status</th>
+              <th className="py-2.5 px-3 min-w-[190px]">Status</th>
               <th className="py-2.5 px-3 min-w-[180px]">Note</th>
             </tr>
           </thead>

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   User,
 } from "lucide-react";
+import { SessionWarnings } from "@/features/attendance/session-warnings";
 import { cn } from "@/lib/utils";
 import type {
   StudentSchedule,
@@ -207,6 +208,7 @@ function SessionCard({
         <SessionAttendanceBadge session={session} today={today} />
       </div>
 
+      <SessionWarnings session={session} />
       {session.trainer_name && (
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#5A5A5A]">
           <User className="size-3 shrink-0" />

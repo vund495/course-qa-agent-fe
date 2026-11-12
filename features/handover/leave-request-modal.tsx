@@ -1,17 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { CalendarDays, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal";
-import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
-import { profileApi } from "@/features/profile/api";
+import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
+import { DateInput } from "@/components/ui/date-input";
 import {
   handoverApi,
   todayIso,
   validateLeaveRange,
-  type TrainerDayStatus,
+  LEAVE_REASONS,
+  type LeaveReason,
+  type ClassAssistant,
 } from "@/lib/handover-api";
 
 type LeaveRequestModalProps = {
@@ -21,6 +22,13 @@ type LeaveRequestModalProps = {
   classLabel?: string;
   onCreated?: () => void;
 };
+const fieldClass =
+  "mt-1 w-full rounded-md border border-[#DADADA] bg-white px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+const dropdownMotionClass =
+  "duration-[250ms] ease-out data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 motion-reduce:animate-none";
+const reasonOptions: AppSelectOption[] = Object.entries(LEAVE_REASONS).map(
+  ([value, label]) => ({ value, label }),
+);
 
 export function LeaveRequestModal({
   isOpen,
@@ -32,177 +40,196 @@ export function LeaveRequestModal({
   const [dateFrom, setDateFrom] = React.useState(todayIso());
   const [dateTo, setDateTo] = React.useState(todayIso());
   const [targetId, setTargetId] = React.useState("");
-  const [reason, setReason] = React.useState("");
-  const [trainers, setTrainers] = React.useState<TrainerDayStatus[]>([]);
-  const [loadingTrainers, setLoadingTrainers] = React.useState(false);
+  const [reasonType, setReasonType] =
+    React.useState<LeaveReason>("annual_leave");
+  const [details, setDetails] = React.useState("");
+  const [assistants, setAssistants] = React.useState<ClassAssistant[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [assistantError, setAssistantError] = React.useState<string | null>(
+    null,
+  );
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (!isOpen || !classId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear options when the modal closes.
-      setTrainers([]);
-      return;
-    }
-    let cancelled = false;
-    setLoadingTrainers(true);
-    setError(null);
-    Promise.all([
-      profileApi.me().catch(() => null),
-      handoverApi.listClassStatus(classId, todayIso()).catch(() => []),
-    ])
-      .then(([me, rows]) => {
-        if (cancelled) return;
-        setTrainers(rows.filter((row) => row.trainer_id !== me?.id));
-      })
-      .catch((cause) => {
-        if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : "Could not load class trainers.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTrainers(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [classId, isOpen]);
-
   React.useEffect(() => {
     if (!isOpen) return;
-    /* eslint-disable react-hooks/set-state-in-effect -- reset the form each time the modal opens. */
+    let active = true;
+    /* eslint-disable react-hooks/set-state-in-effect -- reset and load when the dialog opens. */
     setDateFrom(todayIso());
     setDateTo(todayIso());
     setTargetId("");
-    setReason("");
+    setDetails("");
+    setReasonType("annual_leave");
     setError(null);
+    setAssistantError(null);
+    setAssistants([]);
+    if (!classId) return;
+    setLoading(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [isOpen]);
-
-  const rangeError = validateLeaveRange(dateFrom, dateTo);
-  const canSubmit = !!classId && !!targetId && !rangeError && !busy;
-
-  const targetOptions: AppSelectOption[] = trainers.map((row) => ({
-    value: row.trainer_id,
-    label: row.trainer_name,
-    description: row.status === "off" ? "Marked off today" : "Available today",
-  }));
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    handoverApi
+      .listClassAssistants(classId)
+      .then((rows) => {
+        if (active) setAssistants(rows);
+      })
+      .catch((cause) => {
+        if (active)
+          setAssistantError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not load assistants. You can still request leave without one.",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [classId, isOpen]);
+  const validation =
+    validateLeaveRange(dateFrom, dateTo) ??
+    (reasonType === "other" && !details.trim()
+      ? "Provide details for Other Reason."
+      : null);
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!canSubmit) return;
+    if (validation || !classId || busy) return;
     setBusy(true);
     setError(null);
     try {
       await handoverApi.createLeave({
+        class_id: classId,
         date_from: dateFrom,
         date_to: dateTo,
-        target_trainer_id: targetId,
-        reason: reason.trim() || null,
+        reason_type: reasonType,
+        reason_details: details.trim() || null,
+        target_trainer_id: targetId || null,
       });
-      toast.success("Leave request sent.");
+      toast.success("Leave request sent for admin review.");
       onCreated?.();
       onClose();
     } catch (cause) {
-      const message =
-        cause instanceof Error ? cause.message : "Could not create the leave request.";
-      setError(message);
-      toast.error(message);
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not create the leave request.",
+      );
     } finally {
       setBusy(false);
     }
   }
-
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       title="Request planned leave"
-      subtitle={
-        classLabel
-          ? `Ask a class trainer to cover your tickets for ${classLabel}.`
-          : "Ask a class trainer to cover your tickets."
-      }
+      subtitle={`Request administrator approval${classLabel ? ` for ${classLabel}` : " for this class"}.`}
       widthClass="max-w-lg"
     >
-      <form className="space-y-4" onSubmit={submit}>
-        {!classId && (
-          <p className="rounded-lg border border-[#EAD9B7] bg-[#FFF8E7] p-3 text-sm text-[#8A6414]">
-            Select a class in the ticket inbox first.
-          </p>
-        )}
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="space-y-1 text-sm font-medium text-[#111111]">
+      <form onSubmit={submit} className="space-y-4">
+        {!classId && <p role="alert">Select a class Attendance page first.</p>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-medium" htmlFor="leave-date-from">
             From
-            <input
-              type="date"
+            <DateInput
+              id="leave-date-from"
+              aria-label="From"
+              className={fieldClass}
               value={dateFrom}
-              onChange={(event) => setDateFrom(event.target.value)}
-              className="mt-1 w-full rounded-md border border-[#DADADA] px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              onChange={setDateFrom}
+              required
             />
           </label>
-          <label className="space-y-1 text-sm font-medium text-[#111111]">
+          <label className="text-sm font-medium" htmlFor="leave-date-to">
             To
-            <input
-              type="date"
+            <DateInput
+              id="leave-date-to"
+              aria-label="To"
+              className={fieldClass}
               value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(event) => setDateTo(event.target.value)}
-              className="mt-1 w-full rounded-md border border-[#DADADA] px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              min={dateFrom}
+              onChange={setDateTo}
+              required
             />
           </label>
         </div>
-
-        <label className="block space-y-1 text-sm font-medium text-[#111111]">
-          Cover trainer
+        <label className="block text-sm font-medium" htmlFor="leave-reason">
+          Reason
           <AppSelect
-            value={targetId}
-            onValueChange={setTargetId}
-            options={targetOptions}
-            placeholder={loadingTrainers ? "Loading trainers…" : "Choose a class trainer"}
-            disabled={loadingTrainers || !classId || targetOptions.length === 0}
-            aria-label="Trainer who will cover your tickets"
+            id="leave-reason"
+            aria-label="Leave reason"
+            value={reasonType}
+            onValueChange={(value) => setReasonType(value as LeaveReason)}
+            options={reasonOptions}
+            triggerClassName={fieldClass}
+            contentClassName={`w-[var(--radix-select-trigger-width)] min-w-0 ${dropdownMotionClass}`}
           />
         </label>
-        {!loadingTrainers && classId && targetOptions.length === 0 && (
-          <p className="text-sm text-[#9B3A2A]">
-            This class has no other trainer to receive the request.
-          </p>
-        )}
-
-        <label className="block space-y-1 text-sm font-medium text-[#111111]">
-          Reason <span className="font-normal text-[#6F6F6F]">(optional)</span>
+        <label className="block text-sm font-medium">
+          Reason details {reasonType !== "other" && "(optional)"}
           <textarea
+            aria-label="Reason details"
+            className={fieldClass}
             rows={3}
             maxLength={1000}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Family trip, conference, medical appointment…"
-            className="mt-1 w-full resize-y rounded-md border border-[#DADADA] px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            value={details}
+            required={reasonType === "other"}
+            onChange={(e) => setDetails(e.target.value)}
           />
         </label>
-
-        {(rangeError || error) && (
-          <p role="alert" className="text-sm text-[#9B3A2A]">
-            {rangeError ?? error}
+        {loading ? (
+          <p className="text-sm text-[#6F6F6F]">Loading assigned assistants…</p>
+        ) : assistants.length ? (
+          <label className="block text-sm font-medium" htmlFor="leave-cover-assistant">
+            Cover assistant (optional)
+            <AppSelect
+              id="leave-cover-assistant"
+              aria-label="Cover assistant"
+              value={targetId}
+              onValueChange={setTargetId}
+              options={[
+                { value: "", label: "No assistant selected" },
+                ...assistants.map((assistant) => ({
+                  value: assistant.id,
+                  label: assistant.name,
+                  description: assistant.email,
+                  initials: assistant.name.slice(0, 2).toUpperCase(),
+                })),
+              ]}
+              triggerClassName={fieldClass}
+              contentClassName={`w-[var(--radix-select-trigger-width)] min-w-0 ${dropdownMotionClass}`}
+            />
+          </label>
+        ) : (
+          <p className="text-sm text-[#6F6F6F]">
+            No teaching assistants assigned. You can still request leave.
           </p>
         )}
-
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#F0F0F0] pt-4">
-          <p className="flex items-center gap-1.5 text-xs text-[#6F6F6F]">
-            <CalendarDays className="size-3.5" aria-hidden />
-            The receiving trainer accepts before your day is marked off.
+        {assistantError && (
+          <p role="alert" className="text-sm text-amber-700">
+            {assistantError} You can submit without an assistant.
           </p>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSubmit} className="gap-1.5">
-              <Send className="size-3.5" />
-              {busy ? "Sending…" : "Send request"}
-            </Button>
-          </div>
+        )}
+        {(validation || error) && (
+          <p role="alert" className="text-sm text-red-700">
+            {error ?? validation}
+          </p>
+        )}
+        <p className="text-xs text-[#6F6F6F]">
+          An administrator reviews your request before you are marked off.
+          Approved leave may transfer tickets to the selected assistant.
+        </p>
+        <div className="flex justify-end gap-2 border-t pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={busy || !classId || !!validation}>
+            {busy ? "Sending…" : "Send request"}
+          </Button>
         </div>
       </form>
     </Modal>

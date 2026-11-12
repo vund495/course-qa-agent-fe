@@ -230,14 +230,14 @@ describe("AttendanceSheet Component (Interactions)", () => {
       );
     });
 
-    // Student 2 is initially unmarked. Click "Late"
-    const lateBtns = Array.from(host.querySelectorAll("button")).filter(
-      (b) => b.textContent?.trim() === "Late",
+    // Student 2 is initially unmarked. Click "Unexcused"
+    const unexcusedBtns = Array.from(host.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Unexcused",
     );
-    expect(lateBtns.length).toBeGreaterThan(0);
+    expect(unexcusedBtns.length).toBeGreaterThan(0);
 
     await act(async () => {
-      lateBtns[1].click(); // second student (Tran Thi B)
+      unexcusedBtns[1].click(); // second student (Tran Thi B)
     });
 
     expect(host.textContent).toContain("Confirm Status Change");
@@ -253,7 +253,7 @@ describe("AttendanceSheet Component (Interactions)", () => {
       confirmBtn?.click();
     });
 
-    expect(host.textContent).toContain("Late: 1");
+    expect(host.textContent).toContain("Absent: 1");
     expect(host.textContent).toContain("Unmarked: 0");
   });
 

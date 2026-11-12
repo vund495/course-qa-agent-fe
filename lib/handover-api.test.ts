@@ -104,7 +104,9 @@ describe("handover API client", () => {
         date_from: "2026-11-10",
         date_to: "2026-11-12",
         target_trainer_id: "trainer-2",
-        reason: "Trip",
+        class_id: "class-1",
+        reason_type: "business_trip",
+        reason_details: "Trip",
       });
       expect(calls[1].url).toContain("/api/leave-requests");
       expect(calls[1].init?.method).toBe("POST");
@@ -112,8 +114,8 @@ describe("handover API client", () => {
       await handoverApi.acceptHandover("handover-1");
       expect(calls[2].url).toContain("/api/handovers/handover-1/accept");
 
-      await handoverApi.rejectLeave("leave-1");
-      expect(calls[3].url).toContain("/api/leave-requests/leave-1/reject");
+      await handoverApi.reviewLeave("leave-1", false, "Not available");
+      expect(calls[3].url).toContain("/api/admin/leaves/leave-1/review");
 
       await handoverApi.adminQueue();
       expect(calls[4].url).toContain("/api/admin/tickets/queue");
@@ -126,6 +128,26 @@ describe("handover API client", () => {
     } finally {
       restore();
     }
+  });
+
+  it("maps class assistant and admin leave routes without peer approval", async () => {
+    const { calls, restore } = setupMockFetch([]);
+    try {
+      await handoverApi.listClassAssistants("class/1");
+      await handoverApi.addClassAssistant("class/1", "ta-1");
+      await handoverApi.removeClassAssistant("class/1", "ta/1");
+      await handoverApi.listAdminLeaves("pending");
+      await handoverApi.listAdminLeaves();
+      await handoverApi.reviewLeave("leave/1", true);
+      expect(calls.map(call => call.url.split("/api")[1])).toEqual([
+        "/classes/class%2F1/assistants", "/admin/classes/class%2F1/assistants",
+        "/admin/classes/class%2F1/assistants/ta%2F1", "/admin/leaves?status=pending",
+        "/admin/leaves", "/admin/leaves/leave%2F1/review",
+      ]);
+      expect(JSON.parse(String(calls[1].init?.body))).toEqual({ assistant_id: "ta-1" });
+      expect(calls[2].init?.method).toBe("DELETE");
+      expect(JSON.parse(String(calls[5].init?.body))).toEqual({ approve: true });
+    } finally { restore(); }
   });
 
   it("surfaces the backend detail on failure", async () => {

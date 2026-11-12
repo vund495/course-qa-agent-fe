@@ -40,6 +40,9 @@ export function Modal({ isOpen, onClose, title, subtitle, children, widthClass =
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // A portalled select handles the first Escape itself. Keep the parent
+        // modal open so keyboard users do not lose the form unexpectedly.
+        if (document.querySelector('[role="listbox"]')) return;
         event.stopPropagation();
         onCloseRef.current();
         return;

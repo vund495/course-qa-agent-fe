@@ -18,6 +18,8 @@ import {
   History,
   Activity,
   Inbox,
+  CalendarDays,
+  CalendarCheck,
 } from "lucide-react";
 import { Role, settingsHrefForRole } from "@/components/ui/nav-config";
 import { useAuth } from "@/components/ui/auth-guard";
@@ -27,6 +29,7 @@ import { peekClasses } from "@/lib/class-cache";
 import { classSectionFromPathname } from "@/lib/class-route";
 import { accentFor, studentApi } from "@/lib/student-api";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
+import { AdminLeaveNav } from "@/features/handover/admin-leave-nav";
 import { TicketNotificationBell } from "@/features/tickets/ticket-notifications";
 
 // Class lists come from the backend (student enrollments / trainer ownership).
@@ -136,6 +139,17 @@ export function SidebarNavBody({
             {!collapsed && <span>Home</span>}
           </Link>
 
+          {(role === "trainer" || role === "teaching_assistant") && (
+            <Link
+              href="/teacher/attendance"
+              title="Attendance"
+              className={linkCls(pathname.startsWith("/teacher/attendance"))}
+            >
+              <CalendarCheck className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Attendance</span>}
+            </Link>
+          )}
+
           {role === "admin" && (
             <>
               <Link
@@ -161,6 +175,11 @@ export function SidebarNavBody({
               >
                 <Inbox className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>Ticket Queue</span>}
+              </Link>
+              <AdminLeaveNav collapsed={collapsed} className={linkCls(pathname.startsWith("/admin/leaves"))} />
+              <Link href="/admin/holidays" title="Holiday calendar" className={linkCls(pathname.startsWith("/admin/holidays"))}>
+                <CalendarDays className="h-4 w-4 shrink-0" />
+                {!collapsed && <span>Holiday calendar</span>}
               </Link>
               <Link
                 href="/admin/reports"
