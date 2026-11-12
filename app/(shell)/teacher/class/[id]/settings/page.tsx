@@ -354,7 +354,7 @@ export default function ClassSettingsPage() {
           <button
             type="button"
             onClick={() => void openCopyPicker()}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--brand-line)] bg-white/80 px-3 py-1.5 text-[12.5px] font-semibold text-[var(--brand-ink)] transition-colors hover:bg-white"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-white/25 bg-transparent px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-white/10"
           >
             <Copy className="h-3.5 w-3.5" />
             Copy from another class

@@ -76,7 +76,7 @@ export default function StudentClassesPage() {
   // Same footprint as a real card (~278px) so the catalog below does not jump
   // when the fetched classes replace the placeholder.
   const renderSkeletonCard = (key: number) => (
-    <div key={key} className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden skeleton-shimmer [--skeleton-sheen:rgba(17,17,17,0.05)]">
+    <div key={key} className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm skeleton-shimmer [--skeleton-sheen:rgba(17,17,17,0.05)]">
       <div className="h-2 w-full bg-slate-200" />
       <div className="p-5 flex-1 flex flex-col">
         <div className="flex items-center justify-between mb-4">
@@ -95,7 +95,7 @@ export default function StudentClassesPage() {
   );
 
   const renderClassCard = (cls: StudentClass) => (
-    <div key={cls.id} className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all hover:-translate-y-0.5 flex flex-col overflow-hidden group cursor-pointer" onClick={() => router.push(`/student/class/${cls.id}/overview`)}>
+    <div key={cls.id} className="flex cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md group" onClick={() => router.push(`/student/class/${cls.id}/overview`)}>
       <div className="h-2 w-full" style={{ backgroundColor: accentFor(cls.id) }} />
       <div className="p-5 flex-1 flex flex-col">
         <div className="flex items-center justify-between text-[11px] font-bold text-[#94a3b8]  mb-3">
@@ -151,7 +151,7 @@ export default function StudentClassesPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+        <div className="grid grid-cols-1 gap-6 rounded-2xl border border-[#DCE6F1] bg-[#F4F8FC] p-5 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map(renderSkeletonCard)}
         </div>
       ) : error ? (
@@ -166,7 +166,7 @@ export default function StudentClassesPage() {
           {q ? `Nothing matches "${search}".` : "You are not enrolled in any class yet — browse below and request to join."}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+        <div className="grid grid-cols-1 gap-6 rounded-2xl border border-[#DCE6F1] bg-[#F4F8FC] p-5 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map(renderClassCard)}
         </div>
       )}
