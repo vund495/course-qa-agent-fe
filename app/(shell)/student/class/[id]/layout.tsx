@@ -81,7 +81,7 @@ export default function StudentClassWorkspaceLayout({
         </div>
       ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <PageContainer className="pt-3">{children}</PageContainer>
+          <PageContainer className="flex min-h-full flex-col pt-3">{children}</PageContainer>
         </div>
       )}
     </div>

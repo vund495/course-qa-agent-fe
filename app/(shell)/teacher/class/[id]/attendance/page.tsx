@@ -165,7 +165,7 @@ export default function TeacherAttendancePage() {
   }, [sessions, selectedSessionId]);
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6 max-w-7xl mx-auto w-full">
+    <div className="flex flex-col gap-6">
       <ClassPageHeader
         title="Attendance"
         subtitle="Track, take, and review class attendance per session."
@@ -175,7 +175,7 @@ export default function TeacherAttendancePage() {
               variant="outline"
               size="sm"
               onClick={() => setIsScheduleManagerOpen(true)}
-              className="gap-1.5"
+              className="h-9 gap-1.5"
             >
               <CalendarCog className="size-3.5" />
               Manage schedule
@@ -185,7 +185,7 @@ export default function TeacherAttendancePage() {
               size="sm"
               onClick={() => void loadSessions()}
               disabled={loading}
-              className="gap-1.5"
+              className="h-9 gap-1.5"
             >
               <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
               Refresh
@@ -345,7 +345,7 @@ export default function TeacherAttendancePage() {
                             ? "bg-blue-50 text-blue-700"
                             : sess.status === "cancelled"
                             ? "bg-red-50 text-red-700"
-                            : "bg-amber-50 text-amber-700"
+                            : "bg-muted text-foreground"
                         }`}
                       >
                         {sess.status}

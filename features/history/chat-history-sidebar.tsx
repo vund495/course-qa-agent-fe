@@ -75,7 +75,7 @@ function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
     <>
       {splitHighlightParts(text, keyword).map((part, index) =>
         part.match ? (
-          <mark key={index} className="rounded-sm bg-yellow-100 px-0.5 text-yellow-900">
+          <mark key={index} className="rounded-sm bg-[var(--brand-soft-strong)] px-0.5 text-[var(--brand-ink)]">
             {part.text}
           </mark>
         ) : (
@@ -726,7 +726,7 @@ export function ChatHistorySidebar({
       <aside
         aria-label="Chat history"
         className={cn(
-          'relative hidden shrink-0 overflow-hidden transition-[width] duration-300 ease-out md:block',
+          'relative hidden shrink-0 overflow-hidden bg-white transition-[width] duration-300 ease-out md:block',
           collapsed ? 'w-16' : 'w-64',
           className,
         )}
@@ -736,7 +736,7 @@ export function ChatHistorySidebar({
           aria-hidden={collapsed || undefined}
           inert={collapsed || undefined}
           className={cn(
-            'absolute inset-y-0 left-0 flex h-full w-64 flex-col overflow-hidden border-[#DADADA] bg-white transition-opacity duration-200',
+            'absolute inset-y-0 left-0 flex h-full w-64 flex-col overflow-hidden border-[#DADADA] bg-white transition-opacity duration-300 ease-out',
             isRight ? 'border-l' : 'border-r',
             collapsed ? 'pointer-events-none opacity-0' : 'opacity-100',
           )}
@@ -784,7 +784,7 @@ export function ChatHistorySidebar({
           aria-hidden={!collapsed || undefined}
           inert={!collapsed || undefined}
           className={cn(
-            'absolute inset-y-0 left-0 flex h-full w-16 flex-col overflow-hidden border-[#DADADA] bg-white transition-opacity duration-200',
+            'absolute inset-y-0 left-0 flex h-full w-16 flex-col overflow-hidden border-[#DADADA] bg-white transition-opacity duration-300 ease-out',
             isRight ? 'border-l' : 'border-r',
             collapsed ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}

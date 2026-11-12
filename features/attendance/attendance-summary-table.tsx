@@ -361,7 +361,7 @@ export function AttendanceSummaryTable({
                     <td className="py-2.5 px-3 text-center font-medium text-emerald-700">
                       {row.present}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-medium text-amber-700">
+                    <td className="py-2.5 px-3 text-center font-medium text-foreground">
                       {row.late}
                     </td>
                     <td className="py-2.5 px-3 text-center font-medium text-blue-700">
@@ -380,7 +380,7 @@ export function AttendanceSummaryTable({
                             : rate >= 80
                             ? "text-emerald-800 bg-emerald-50"
                             : rate >= 50
-                            ? "text-amber-800 bg-amber-50"
+                            ? "text-foreground bg-muted"
                             : "text-rose-800 bg-rose-50",
                         )}
                       >

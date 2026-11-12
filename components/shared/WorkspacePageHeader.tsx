@@ -37,17 +37,21 @@ export function WorkspacePageHeader({
           WebkitMaskImage: "linear-gradient(to right, transparent, black 46%)",
         }}
       />
-      <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="relative z-10 flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h1 id={id} className="font-heading text-balance text-[24px] font-bold leading-tight tracking-tight text-white sm:text-[28px]">
               {title}
             </h1>
             {badge}
           </div>
-          {subtitle && <p className="mt-1.5 max-w-3xl text-[13px] leading-relaxed text-[#DEE8F2] sm:text-[13.5px]">{subtitle}</p>}
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {subtitle && (
+          <p className="max-w-4xl text-[13px] leading-relaxed text-[#DEE8F2] sm:text-[13.5px]">
+            {subtitle}
+          </p>
+        )}
       </div>
     </header>
   );

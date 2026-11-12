@@ -13,7 +13,7 @@ import { studentQuizApi, type StudentQuizListItem } from "@/lib/student-quiz-api
 
 const BADGE: Record<string, string> = {
   OPEN: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  UPCOMING: "bg-amber-50 text-amber-800 border-amber-200",
+  UPCOMING: "bg-muted text-foreground border-border",
   CLOSED: "bg-slate-100 text-slate-700 border-slate-200",
   EXHAUSTED: "bg-rose-50 text-rose-800 border-rose-200",
 };
@@ -59,7 +59,7 @@ export function StudentQuizList({ classId }: { classId: string }) {
   }, [load]);
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-1 flex-col gap-5">
       <ClassPageHeader
         title="Quizzes"
         subtitle="Timed assessments for this class. Your answers autosave while you work."
@@ -78,15 +78,15 @@ export function StudentQuizList({ classId }: { classId: string }) {
       )}
 
       {quizzes === null ? (
-        <div className="flex items-center gap-2 rounded-lg border border-[#DADADA] bg-white px-4 py-8 text-[13px] text-[#5A5A5A]">
+        <div className="flex flex-1 items-center gap-2 rounded-xl border border-[#DADADA] bg-white px-4 py-8 text-[13px] text-[#5A5A5A]">
           <LoaderCircle className="size-4 animate-spin" /> Loading quizzes…
         </div>
       ) : quizzes.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-[#CFCFCF] bg-white px-4 py-8 text-center text-[13px] text-[#5A5A5A]">
+        <p className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-[#CFCFCF] bg-white px-4 py-8 text-center text-[13px] text-[#5A5A5A]">
           No quizzes have been published for this class yet.
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="flex-1 divide-y divide-[#DADADA] rounded-xl border border-[#DADADA] bg-white">
           {quizzes.map((quiz) => {
             const completed =
               quiz.attempt_status === "SUBMITTED" || quiz.attempt_status === "EXPIRED";
@@ -120,7 +120,7 @@ export function StudentQuizList({ classId }: { classId: string }) {
             return (
               <li
                 key={quiz.quiz_id}
-                className="rounded-xl border border-[#DADADA] bg-white p-4 sm:p-5"
+                className="p-4 transition-colors hover:bg-[#FAFAFA] sm:p-5"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 space-y-1.5">

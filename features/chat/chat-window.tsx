@@ -641,7 +641,7 @@ export function ChatWindow({
       </header>
 
       {backgroundStream && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 md:px-4">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-muted/60 px-3 py-2 text-xs text-foreground md:px-4">
           <span className="truncate">
             AI is still answering in another conversation. You can go back to it.
           </span>
@@ -655,7 +655,7 @@ export function ChatWindow({
                   onNewChat?.();
                 }
               }}
-              className="shrink-0 rounded-md border border-amber-300 bg-white px-2 py-1 font-medium text-amber-900 transition-colors hover:bg-amber-100"
+              className="shrink-0 rounded-md border border-border bg-white px-2 py-1 font-medium text-foreground transition-colors hover:bg-muted"
             >
               Back to chat
             </button>
