@@ -165,7 +165,7 @@ export default function TeacherAttendancePage() {
   }, [sessions, selectedSessionId]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Attendance"
         subtitle="Track, take, and review class attendance per session."
@@ -219,6 +219,7 @@ export default function TeacherAttendancePage() {
       )}
 
       {/* AI-158 — teacher availability for the day */}
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       <TrainerDayStatus classId={classId} />
 
       {/* Week Navigation Header */}
@@ -299,7 +300,7 @@ export default function TeacherAttendancePage() {
       ) : sessions.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[#DADADA] bg-[#FAFAFA] p-8 text-center" data-testid="attendance-empty-sessions">
           <Calendar className="mx-auto size-8 text-[#8C8C8C]" />
-          <h3 className="mt-2 text-sm font-semibold text-[#111111]">No sessions this week</h3>
+          <h3 className="mt-2 text-[14px] font-bold text-[#111111]">No sessions this week</h3>
           <p className="mt-1 text-xs text-[#5A5A5A]">
             No class sessions are scheduled for this week range.
           </p>
@@ -425,6 +426,7 @@ export default function TeacherAttendancePage() {
         error={summaryError}
         onRetry={() => void loadSummary(summaryRange)}
       />
+      </div>
 
       {/* Schedule Manager Modal */}
       <AttendanceScheduleManager

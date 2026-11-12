@@ -48,7 +48,7 @@ export function TicketsInboxLayout({
   const columnCount = Math.max(filters.length, 1);
 
   return (
-    <div className="flex h-full flex-col space-y-5">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title={title}
         subtitle={subtitle}
@@ -56,8 +56,9 @@ export function TicketsInboxLayout({
         actions={headerActions}
       />
 
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="relative w-full xl:w-[340px] xl:shrink-0">
+      <div className="-mx-6 flex min-h-[520px] flex-1 flex-col overflow-hidden border-x border-b border-[#DADADA] bg-white">
+      <div className="flex flex-col gap-3 border-b border-[#F0F0F0] p-5 md:flex-row md:items-center md:justify-between md:p-6">
+        <div className="relative w-full md:w-[340px] md:shrink-0">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5A5A5A]" />
           <input
             type="text"
@@ -71,7 +72,7 @@ export function TicketsInboxLayout({
         <div
           role="group"
           aria-label="Filter tickets by status"
-          className="relative grid w-full rounded-lg bg-slate-100 p-1 xl:w-auto xl:max-w-[520px] xl:flex-1"
+          className="relative grid w-full rounded-lg bg-slate-100 p-1 md:w-auto md:max-w-[520px] md:flex-1"
           style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
         >
           <span
@@ -113,7 +114,7 @@ export function TicketsInboxLayout({
         </div>
       </div>
 
-      <div className="flex min-h-[520px] flex-1 flex-col overflow-hidden rounded-lg border border-[#DADADA] bg-white md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Left Column */}
         <div className="flex w-full shrink-0 flex-col border-r border-[#F0F0F0] bg-white md:w-[340px] lg:w-[380px]">
           <div className="flex-1 overflow-y-auto">{leftListContent}</div>
@@ -123,6 +124,7 @@ export function TicketsInboxLayout({
         <div className="flex flex-1 flex-col overflow-hidden bg-white">
           {rightDetailContent}
         </div>
+      </div>
       </div>
     </div>
   );

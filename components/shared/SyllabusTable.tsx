@@ -95,10 +95,12 @@ export function SyllabusRoadmap({
   classId,
   isTeacher = false,
   refreshKey = 0,
+  children,
 }: {
   classId: string;
   isTeacher?: boolean;
   refreshKey?: number;
+  children?: React.ReactNode;
 }) {
   const [roadmap, setRoadmap] = React.useState<ClassSyllabusRoadmap | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -156,8 +158,36 @@ export function SyllabusRoadmap({
     }
   }
 
+  const toolbar = loading ? (
+    <div className="flex flex-wrap items-center gap-2.5">
+      <SkeletonLine className="h-8 w-56" />
+      <SkeletonLine className="h-8 w-24" />
+    </div>
+  ) : units.length > 0 ? (
+    <div className="flex flex-wrap items-center gap-2.5">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1.5 h-4 w-4 text-[#6F6F6F]" />
+        <input
+          type="text"
+          placeholder="Search units"
+          aria-label="Search syllabus units"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-56 rounded border border-[var(--brand-line)] bg-white py-1.5 pl-8 pr-3 text-[12.5px] text-[#111111] outline-none focus:border-[#111111]"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={toggleAll}
+        className="inline-flex h-8 w-[104px] shrink-0 items-center justify-center whitespace-nowrap rounded border border-[var(--brand-line)] bg-white px-3 text-[12.5px] font-semibold text-[#111111] transition-colors hover:bg-white/70"
+      >
+        {allExpanded ? "Collapse all" : "Expand all"}
+      </button>
+    </div>
+  ) : undefined;
+
   return (
-    <section aria-labelledby="syllabus-roadmap-heading" className="space-y-4">
+    <section aria-labelledby="syllabus-roadmap-heading" className="flex flex-1 flex-col">
       <ClassPageHeader
         id="syllabus-roadmap-heading"
         title="Syllabus"
@@ -181,39 +211,15 @@ export function SyllabusRoadmap({
             </span>
           ) : undefined
         }
-        actions={
-          loading ? (
-            <div className="flex flex-wrap items-center gap-2.5">
-              <SkeletonLine className="h-8 w-56" />
-              <SkeletonLine className="h-8 w-24" />
-            </div>
-          ) : units.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1.5 h-4 w-4 text-[#6F6F6F]" />
-                <input
-                  type="text"
-                  placeholder="Search units"
-                  aria-label="Search syllabus units"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-56 rounded border border-[var(--brand-line)] bg-white py-1.5 pl-8 pr-3 text-[12.5px] text-[#111111] outline-none focus:border-[#111111]"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={toggleAll}
-                className="inline-flex h-8 w-[104px] shrink-0 items-center justify-center whitespace-nowrap rounded border border-[var(--brand-line)] bg-white px-3 text-[12.5px] font-semibold text-[#111111] transition-colors hover:bg-white/70"
-              >
-                {allExpanded ? "Collapse all" : "Expand all"}
-              </button>
-            </div>
-          ) : undefined
-        }
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-4 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
+      {toolbar && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5">{toolbar}</div>
+      )}
+
       {loading ? (
-        <div className="divide-y divide-[#DADADA] overflow-hidden rounded-lg border border-[#DADADA] bg-white">
+        <div className="flex flex-1 flex-col divide-y divide-[#DADADA] overflow-hidden rounded-lg border border-[#DADADA] bg-white">
           {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className="flex items-center gap-3.5 px-4 py-3.5">
               <SkeletonLine className="h-7 w-9" />
@@ -296,6 +302,8 @@ export function SyllabusRoadmap({
           })}
         </Reveal>
       )}
+      {children}
+      </div>
     </section>
   );
 }

@@ -399,7 +399,7 @@ export default function QuestionBankPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Question Bank"
         subtitle="Assessment repository aligned with the Dreyfus skill taxonomy — the first stage of quiz generation."
@@ -463,6 +463,7 @@ export default function QuestionBankPage() {
       )}
 
       {/* Statistics Row */}
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm">
           <div className="text-xs font-medium text-slate-500">Total Questions</div>
@@ -772,6 +773,7 @@ export default function QuestionBankPage() {
           })}
         </div>
       )}
+      </div>
 
       {/* MODAL 1: AI Question Generator Modal */}
       {isAiGenOpen && (

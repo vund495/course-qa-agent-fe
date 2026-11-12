@@ -9,9 +9,9 @@ interface MembersTableProps {
 
 export function MembersTable({ toolbar, children }: MembersTableProps) {
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       {toolbar}
-      <div className="bg-white border border-[#DADADA] rounded-lg overflow-hidden">
+      <div className="flex flex-1 flex-col bg-white border border-[#DADADA] rounded-lg overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-white border-b border-[#DADADA] text-[12px] font-medium text-[#6F6F6F]">

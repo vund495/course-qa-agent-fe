@@ -14,7 +14,7 @@ export default function QuizzesPage() {
   const [isBlueprintOpen, setIsBlueprintOpen] = React.useState(false);
 
   return (
-    <div className="flex flex-1 flex-col gap-5">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Quizzes"
         subtitle="Generate standardized assessments from Question Bank blueprint matrix or import from Excel."

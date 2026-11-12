@@ -102,7 +102,7 @@ export function ClassInfoCard({
   emptyMessage?: string;
 }) {
   return (
-    <section className="rounded-lg border border-[#DADADA] bg-white p-5 md:p-6">
+    <section className="-mx-6 flex-1 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <h3 className="text-[14px] font-bold text-[#111111]">{title}</h3>
         {action}

@@ -14,7 +14,7 @@ import { getSessionDetail } from '@/features/history/api';
 import { getChatQuota, type ChatQuota } from './api';
 import { mapHistoryCitation, mergeCitation, uniqueCitations } from '@/lib/citations';
 import type { ChatMessageItem } from '@/features/history/types';
-import { History, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { History, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ChatCitation, ChatProgressStage } from '@/lib/sse';
 
@@ -111,8 +111,6 @@ export function ChatWindow({
   onOpenSession,
   onNewChat,
   onOpenHistory,
-  historyCollapsed = false,
-  onToggleHistory,
   canOpenTicket = false,
 }: {
   classId: string;
@@ -127,10 +125,6 @@ export function ChatWindow({
   onNewChat?: () => void;
   /** Mobile only: opens the chat-history drawer (the panel is hidden < md). */
   onOpenHistory?: () => void;
-  /** Desktop only: whether the chat-history column is currently collapsed away. */
-  historyCollapsed?: boolean;
-  /** Desktop only: collapses or restores the chat-history column. */
-  onToggleHistory?: () => void;
   /** Student chat can open a teacher ticket for a completed answer. */
   canOpenTicket?: boolean;
 }) {
@@ -589,54 +583,48 @@ export function ChatWindow({
   return (
     <div className="flex flex-col h-full relative bg-white">
       {/* The transcript and history rail share the same soft header tint as the class tabs. */}
-      <header className="flex h-11 shrink-0 items-center gap-1 border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-3 md:px-4">
-        {onOpenHistory && (
-          <button
-            type="button"
-            onClick={onOpenHistory}
-            title="Chat history"
-            aria-label="Open chat history"
-            className="-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 md:hidden"
-          >
-            <History className="h-4 w-4" />
-          </button>
-        )}
-        {onToggleHistory && (
-          <button
-            type="button"
-            onClick={onToggleHistory}
-            title={historyCollapsed ? 'Show chat history' : 'Hide chat history'}
-            aria-label={historyCollapsed ? 'Show chat history' : 'Hide chat history'}
-            aria-expanded={!historyCollapsed}
-            aria-controls="chat-history-panel"
-            className="-ml-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 md:flex"
-          >
-            {historyCollapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
-            )}
-          </button>
-        )}
-        <h1 className="truncate text-[13.5px] font-semibold text-white">Course AI Assistant</h1>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {quota?.limit != null && (
-            <span
-              className={`whitespace-nowrap text-[11px] font-bold ${
-                quota.remaining === 0 ? 'text-[#FCD9B6]' : 'text-[#DEE8F2]'
-              }`}
-              title={`${quota.remaining ?? 0} of ${quota.limit} questions left today`}
-            >
-              <span className="sm:hidden">
-                {quota.remaining ?? 0}/{quota.limit} left
-              </span>
-              <span className="hidden sm:inline">
-                {quota.remaining === 0
-                  ? 'Daily question limit reached'
-                  : `${quota.remaining ?? 0} of ${quota.limit} questions left today`}
-              </span>
-            </span>
-          )}
+      <header className="relative isolate flex h-[92px] shrink-0 flex-col justify-center overflow-hidden border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 sm:px-5 md:px-6">
+        <div className="relative z-10 flex flex-col gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">
+                Course AI Assistant
+              </h1>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {onOpenHistory && (
+                <button
+                  type="button"
+                  onClick={onOpenHistory}
+                  title="Chat history"
+                  aria-label="Open chat history"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 md:hidden"
+                >
+                  <History className="h-4 w-4" />
+                </button>
+              )}
+              {quota?.limit != null && (
+                <span
+                  className={`whitespace-nowrap text-[11px] font-bold ${
+                    quota.remaining === 0 ? 'text-[#FCD9B6]' : 'text-[#DEE8F2]'
+                  }`}
+                  title={`${quota.remaining ?? 0} of ${quota.limit} questions left today`}
+                >
+                  <span className="sm:hidden">
+                    {quota.remaining ?? 0}/{quota.limit} left
+                  </span>
+                  <span className="hidden sm:inline">
+                    {quota.remaining === 0
+                      ? 'Daily question limit reached'
+                      : `${quota.remaining ?? 0} of ${quota.limit} questions left today`}
+                  </span>
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="max-w-4xl text-[13px] leading-relaxed text-[#DEE8F2] sm:text-[13.5px]">
+            Ask about this class&apos;s materials — every answer cites its source.
+          </p>
         </div>
       </header>
 

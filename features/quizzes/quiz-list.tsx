@@ -129,7 +129,7 @@ export function QuizList({
   }
 
   return (
-    <section className="flex flex-1 flex-col gap-4 rounded-xl border border-[#DADADA] bg-white p-5">
+    <section className="-mx-6 flex flex-1 flex-col gap-4 border-x border-b border-[#DADADA] bg-white p-5">
       <header>
         <h2 className="font-semibold text-slate-900">Quizzes</h2>
         <p className="mt-1 text-sm text-slate-600">

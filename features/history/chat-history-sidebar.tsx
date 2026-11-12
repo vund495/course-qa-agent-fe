@@ -11,6 +11,8 @@ import {
   Pencil,
   Pin,
   PinOff,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   RefreshCw,
   Search,
@@ -116,6 +118,8 @@ export interface ChatHistorySidebarProps {
   collapsed?: boolean;
   /** Desktop: expands the compact rail (used by its search and expand buttons). */
   onExpand?: () => void;
+  /** Desktop: collapses the panel from the button beside its title. */
+  onCollapse?: () => void;
   /** Mobile drawer (< md). Desktop keeps the column mounted so it can animate. */
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
@@ -139,6 +143,7 @@ export function ChatHistorySidebar({
   side = 'left',
   collapsed = false,
   onExpand,
+  onCollapse,
   mobileOpen = false,
   onMobileOpenChange,
 }: ChatHistorySidebarProps) {
@@ -476,10 +481,16 @@ export function ChatHistorySidebar({
 
     if (isLoading) {
       return (
-        <div className="space-y-2" aria-hidden>
-          <Skeleton className="h-12 w-full rounded-lg" />
-          <Skeleton className="h-12 w-full rounded-lg" />
-          <Skeleton className="h-12 w-full rounded-lg" />
+        <div className="space-y-1.5" aria-hidden>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-start gap-2 rounded-lg px-1.5 py-1.5">
+              <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-sm bg-[#E4E8ED]" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Skeleton className="h-3 w-3/4 rounded bg-[#E4E8ED]" />
+                <Skeleton className="h-2.5 w-1/3 rounded bg-[#EDF0F4]" />
+              </div>
+            </div>
+          ))}
         </div>
       );
     }
@@ -736,28 +747,52 @@ export function ChatHistorySidebar({
           aria-hidden={collapsed || undefined}
           inert={collapsed || undefined}
           className={cn(
-            'absolute inset-y-0 left-0 flex h-full w-64 flex-col overflow-hidden border-[#DADADA] bg-white transition-opacity duration-300 ease-out',
-            isRight ? 'border-l' : 'border-r',
+            'absolute inset-y-0 left-0 flex h-full w-64 flex-col overflow-hidden bg-white transition-opacity duration-300 ease-out',
             collapsed ? 'pointer-events-none opacity-0' : 'opacity-100',
           )}
         >
-          <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-3">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-[13.5px] font-semibold text-white">
-                Chat History
-              </span>
-              {sessions.length > 0 && (
-                <span
-                  className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-white/15 px-1 text-[10px] font-semibold leading-none text-white"
-                  aria-label={`${sessions.length} conversations`}
-                >
-                  {sessions.length > 99 ? '99+' : sessions.length}
+          {/* Mirrors WorkspacePageHeader so the title and sub sit on the same baseline as the other tabs. */}
+          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 sm:px-5 md:px-6">
+            <div className="flex flex-col gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">
+                  Chat History
                 </span>
-              )}
-            </span>
+                {sessions.length > 0 && (
+                  <span
+                    className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-white/15 px-1 text-[10px] font-semibold leading-none text-white"
+                    aria-label={`${sessions.length} conversations`}
+                  >
+                    {sessions.length > 99 ? '99+' : sessions.length}
+                  </span>
+                )}
+                {onCollapse && (
+                  <button
+                    type="button"
+                    onClick={onCollapse}
+                    title="Hide chat history"
+                    aria-label="Hide chat history"
+                    aria-expanded="true"
+                    aria-controls="chat-history-panel"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                  >
+                    <PanelLeftClose className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <p className="max-w-4xl text-[13px] leading-relaxed text-[#DEE8F2] sm:text-[13.5px]">
+                Past conversations in this class
+              </p>
+            </div>
           </div>
 
-          <div id="chat-history-panel" className="flex min-h-0 flex-1 flex-col">
+          <div
+            id="chat-history-panel"
+            className={cn(
+              'flex min-h-0 flex-1 flex-col border-[#DADADA]',
+              isRight ? 'border-l' : 'border-r',
+            )}
+          >
             {/* Header, New chat and search stay put; only the list scrolls. */}
             <div className="shrink-0 space-y-1.5 px-2 pt-2">
               {onNewChat && (
@@ -784,16 +819,34 @@ export function ChatHistorySidebar({
           aria-hidden={!collapsed || undefined}
           inert={!collapsed || undefined}
           className={cn(
-            'absolute inset-y-0 left-0 flex h-full w-16 flex-col overflow-hidden border-[#DADADA] bg-white transition-opacity duration-300 ease-out',
-            isRight ? 'border-l' : 'border-r',
+            'absolute inset-y-0 left-0 flex h-full w-16 flex-col overflow-hidden bg-white transition-opacity duration-300 ease-out',
             collapsed ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
         >
-          <div className="flex h-11 shrink-0 items-center justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)]">
-            <History className="h-4 w-4 text-white/70" aria-hidden="true" />
+          <div className="flex h-[92px] shrink-0 items-center justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)]">
+            {onExpand ? (
+              <button
+                type="button"
+                onClick={onExpand}
+                title="Show chat history"
+                aria-label="Show chat history"
+                aria-expanded="false"
+                aria-controls="chat-history-panel"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </button>
+            ) : (
+              <History className="h-4 w-4 text-white/70" aria-hidden="true" />
+            )}
           </div>
 
-          <div className="flex shrink-0 flex-col items-center gap-1.5 px-2 pt-2">
+          <div
+            className={cn(
+              'flex shrink-0 flex-col items-center gap-1.5 border-[#DADADA] px-2 pt-2 pb-2',
+              isRight ? 'border-l' : 'border-r',
+            )}
+          >
             {onNewChat && (
               <button
                 type="button"
@@ -817,7 +870,12 @@ export function ChatHistorySidebar({
             <span className="h-px w-6 bg-[#E9EDF2]" aria-hidden="true" />
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col items-center gap-1.5 overflow-y-auto px-2 py-2">
+          <div
+            className={cn(
+              'flex min-h-0 flex-1 flex-col items-center gap-1.5 overflow-y-auto border-[#DADADA] px-2 py-2',
+              isRight ? 'border-l' : 'border-r',
+            )}
+          >
             {railSessions.length === 0 ? (
               <span className="mt-1 text-center text-[9px] font-medium leading-tight text-[#9F9F9F]">
                 Pin a chat
@@ -875,21 +933,26 @@ export function ChatHistorySidebar({
             Choose a past conversation from this class or start a new one.
           </DialogDescription>
 
-          <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] pl-3 pr-1.5">
-            <span className="truncate text-[13.5px] font-semibold text-white">
-              Chat History
-            </span>
-            <div className="flex items-center gap-0.5">
-              <DialogClose asChild>
-                <button
-                  type="button"
-                  title="Close"
-                  aria-label="Close chat history"
-                  className={cn(iconButton, 'text-white hover:bg-white/15 hover:text-white')}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </DialogClose>
+          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 sm:px-5">
+            <div className="flex flex-col gap-2">
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <span className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">
+                  Chat History
+                </span>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    title="Close"
+                    aria-label="Close chat history"
+                    className={cn(iconButton, 'text-white hover:bg-white/15 hover:text-white')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </DialogClose>
+              </div>
+              <p className="max-w-4xl text-[13px] leading-relaxed text-[#DEE8F2] sm:text-[13.5px]">
+                Past conversations in this class
+              </p>
             </div>
           </div>
 

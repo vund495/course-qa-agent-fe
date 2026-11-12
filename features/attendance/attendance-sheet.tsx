@@ -303,7 +303,7 @@ export function AttendanceSheet({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0F0F0] pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-[#111111]">
+            <h3 className="text-[14px] font-bold text-[#111111]">
               Session: {formatDateDisplay(session.date)}
             </h3>
             <span

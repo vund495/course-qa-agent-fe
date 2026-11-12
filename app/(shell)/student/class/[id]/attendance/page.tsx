@@ -72,7 +72,7 @@ export default function StudentAttendancePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="My Attendance"
         subtitle="View your attendance history, sessions, and attendance rate."
@@ -90,6 +90,7 @@ export default function StudentAttendancePage() {
         }
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       {/* Month Filter Selector (prev/next and direct select) */}
       <div
         data-testid="month-filter-toolbar"
@@ -186,6 +187,7 @@ export default function StudentAttendancePage() {
 
       {/* Loaded Content */}
       {!loading && !error && data && <StudentAttendanceHistory data={data} />}
+      </div>
     </div>
   );
 }

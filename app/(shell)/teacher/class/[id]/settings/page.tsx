@@ -346,7 +346,7 @@ export default function ClassSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Course Settings"
         subtitle="Class information and the configuration that guides how this class is taught."
@@ -362,6 +362,7 @@ export default function ClassSettingsPage() {
         }
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       <div className="rounded-lg border border-[#DADADA] bg-white p-6">
         <h3 className="mb-4 text-[14px] font-bold text-[#111111]">General</h3>
         {!cls && loading ? (
@@ -649,6 +650,7 @@ export default function ClassSettingsPage() {
           </div>
         </>
       )}
+      </div>
 
       <Modal
         isOpen={isCopyOpen}
