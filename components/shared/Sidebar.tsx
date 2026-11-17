@@ -20,6 +20,7 @@ import {
   Inbox,
   CalendarDays,
   CalendarCheck,
+  Ticket,
 } from "lucide-react";
 import { Role, settingsHrefForRole } from "@/components/ui/nav-config";
 import { useAuth } from "@/components/ui/auth-guard";
@@ -147,6 +148,17 @@ export function SidebarNavBody({
             >
               <CalendarCheck className="h-4 w-4 shrink-0" />
               {!collapsed && <span>Attendance</span>}
+            </Link>
+          )}
+
+          {role !== "admin" && (
+            <Link
+              href={`${basePath}/tickets`}
+              title="Tickets"
+              className={linkCls(pathname === `${basePath}/tickets`)}
+            >
+              <Ticket className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Tickets</span>}
             </Link>
           )}
 
