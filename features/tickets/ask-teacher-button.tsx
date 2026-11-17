@@ -13,12 +13,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { studentApi, type StudentClass } from '@/lib/student-api';
+import { cn } from '@/lib/utils';
 import { createAnswerTicket } from './api';
 import type { ChatCitation } from '@/lib/sse';
 import { CitationChip } from '@/features/citations/citation-chip';
 import { citationKey } from '@/lib/citations';
 import { TicketCitations } from './ticket-citations';
 import { addTicketReply, createTicket, getStudentTicket, reopenTicket, resolveTicket, type Ticket, type TicketReply } from './api';
+import { TicketAttachmentComposer, type PendingTicketAttachment } from './ticket-attachment-composer';
+import { TicketAttachmentList } from './ticket-attachment-list';
+import { formatTicketDate } from './ticket-status-badge';
 
 export function AskTeacherButton({
   classId,
@@ -39,6 +43,7 @@ export function AskTeacherButton({
   const [ticket, setTicket] = React.useState<Ticket | null>(null);
   const [replies, setReplies] = React.useState<TicketReply[]>([]);
   const [followUp, setFollowUp] = React.useState('');
+  const [pendingAttachments, setPendingAttachments] = React.useState<PendingTicketAttachment[]>([]);
   const [loadingClasses, setLoadingClasses] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -115,17 +120,23 @@ export function AskTeacherButton({
 
   async function submitFollowUp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!ticket || !followUp.trim()) return;
+    if (!ticket) return;
     const message = followUp.trim();
+    const attachmentIds = pendingAttachments.map((item) => item.id);
+    if (!message && attachmentIds.length === 0) return;
     setSubmitting(true);
     setError(null);
     try {
-      const saved = await addTicketReply(ticket.id, message);
+      const saved = await addTicketReply(ticket.id, message, attachmentIds);
       setReplies((current) => [...current, saved]);
       setTicket((current) =>
         current && current.status === 'ANSWERED' ? { ...current, status: 'OPEN' } : current,
       );
       setFollowUp('');
+      pendingAttachments.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      setPendingAttachments([]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not add your message.');
     } finally {
@@ -202,7 +213,7 @@ export function AskTeacherButton({
                   <span className="block">Status: {ticket.status} · Class: {classes.find((item) => item.id === ticket.class_id)?.code ?? ticket.class_id}</span>
                 </DialogDescription>
               </DialogHeader>
-              <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-[#E5E5E5] p-3 text-sm">
+              <div className="max-h-56 space-y-3 overflow-y-auto rounded-md border border-[#E5E5E5] p-3 text-sm">
                 <TicketCitations citations={ticket.citations} />
                 {ticket.original_question && <p className="whitespace-pre-wrap">{ticket.original_question}</p>}
                 {ticket.agent_answer && <div className="space-y-1">
@@ -210,12 +221,38 @@ export function AskTeacherButton({
                   <p className="whitespace-pre-wrap rounded-md bg-[#F7F7F7] p-2">{ticket.agent_answer}</p>
                 </div>}
                 <p className="font-medium">{ticket.question}</p>
-                {replies.map((item) => (
-                  <div key={item.id} className="rounded-md bg-[#F7F7F7] p-2">
-                    <p className="mb-1 text-xs text-[#777]">{item.user_id === ticket.student_id ? 'You' : 'Teacher'}</p>
-                    <p className="whitespace-pre-wrap">{item.message}</p>
-                  </div>
-                ))}
+                {replies.map((item) => {
+                  const fromStudent = item.user_id === ticket.student_id;
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        'w-fit max-w-[85%] py-1 text-sm',
+                        fromStudent && 'ml-auto',
+                      )}
+                    >
+                      <p
+                        className={cn(
+                          'mb-0.5 text-[11px] font-semibold',
+                          fromStudent ? 'text-[#8A8A8A]' : 'text-[#4472A8]',
+                        )}
+                      >
+                        {fromStudent ? 'You' : 'Teacher'}
+                      </p>
+                      {item.message && (
+                        <p className="whitespace-pre-wrap break-words text-[#111111]">{item.message}</p>
+                      )}
+                      <TicketAttachmentList
+                        attachments={item.attachments}
+                        align={fromStudent ? 'end' : 'start'}
+                        compact
+                      />
+                      <time dateTime={item.created_at} className="mt-0.5 block text-[10px] text-[#9A9A9A]">
+                        {formatTicketDate(item.created_at)}
+                      </time>
+                    </div>
+                  );
+                })}
               </div>
               {ticket.status === 'ANSWERED' && <p className="text-sm">Your teacher has replied. Ask a follow-up below or confirm that your question is resolved.</p>}
               {(ticket.status === 'OPEN' || ticket.status === 'ANSWERED') && <form onSubmit={submitFollowUp} className="space-y-3">
@@ -230,6 +267,13 @@ export function AskTeacherButton({
                     className="w-full rounded-md border border-[#DADADA] bg-white px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   />
                 </label>
+                <TicketAttachmentComposer
+                  ticketId={ticket.id}
+                  value={pendingAttachments}
+                  onChange={setPendingAttachments}
+                  disabled={submitting}
+                  compact
+                />
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>Close</Button>
                   {ticket.status === 'ANSWERED' && (
@@ -237,7 +281,7 @@ export function AskTeacherButton({
                       {submitting ? 'Saving…' : 'Confirm resolved'}
                     </Button>
                   )}
-                  <Button type="submit" disabled={submitting || !followUp.trim()}>
+                  <Button type="submit" disabled={submitting || (!followUp.trim() && pendingAttachments.length === 0)}>
                     {submitting ? 'Sending…' : 'Send follow-up'}
                   </Button>
                 </DialogFooter>

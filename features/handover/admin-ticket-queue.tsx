@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { TicketsInboxLayout } from "@/components/shared/TicketsInboxLayout";
 import { Button } from "@/components/ui/button";
 import { addTicketReply } from "@/features/tickets/api";
+import { TicketAttachmentComposer, type PendingTicketAttachment } from "@/features/tickets/ticket-attachment-composer";
+import { TicketAttachmentList } from "@/features/tickets/ticket-attachment-list";
 import {
   TicketOwnerBadge,
   isSystemTicketReply,
@@ -42,6 +44,7 @@ export function AdminTicketQueue() {
   const [search, setSearch] = React.useState("");
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [reply, setReply] = React.useState("");
+  const [pendingAttachments, setPendingAttachments] = React.useState<PendingTicketAttachment[]>([]);
   const [replyBusy, setReplyBusy] = React.useState(false);
   const [replyError, setReplyError] = React.useState<string | null>(null);
   const [assignItem, setAssignItem] = React.useState<AdminQueueItem | null>(null);
@@ -86,12 +89,16 @@ export function AdminTicketQueue() {
 
   async function sendReply(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected || !reply.trim()) return;
+    if (!selected) return;
+    const message = reply.trim();
+    const attachmentIds = pendingAttachments.map((item) => item.id);
+    if (!message && attachmentIds.length === 0) return;
     setReplyBusy(true);
     setReplyError(null);
     try {
-      await addTicketReply(selected.id, reply.trim());
+      await addTicketReply(selected.id, message, attachmentIds);
       setReply("");
+      clearPendingAttachments();
       toast.success("Reply sent. The ticket left the queue.");
       setReloadKey((value) => value + 1);
     } catch (cause) {
@@ -102,6 +109,15 @@ export function AdminTicketQueue() {
     } finally {
       setReplyBusy(false);
     }
+  }
+
+  function clearPendingAttachments() {
+    setPendingAttachments((current) => {
+      current.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
   }
 
   const leftContent = (
@@ -135,6 +151,7 @@ export function AdminTicketQueue() {
             onClick={() => {
               setSelectedId(item.id);
               setReply("");
+              clearPendingAttachments();
               setReplyError(null);
             }}
             className={cn(
@@ -238,7 +255,7 @@ export function AdminTicketQueue() {
                   </section>
                 )}
 
-                <section className="space-y-3">
+                <section className="space-y-4">
                   <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#6F6F6F]">
                     Conversation
                   </h3>
@@ -252,7 +269,7 @@ export function AdminTicketQueue() {
                         return (
                           <div
                             key={item.id}
-                            className="mx-auto max-w-[95%] rounded-lg border border-dashed border-[#D6C48A] bg-[#FFF9EA] px-3.5 py-2.5 text-sm"
+                            className="mx-auto w-fit max-w-[95%] rounded-2xl border border-dashed border-[#D6C48A] bg-[#FFF9EA] px-3.5 py-2.5 text-sm"
                           >
                             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#8A6414]">
                               System update
@@ -268,21 +285,29 @@ export function AdminTicketQueue() {
                         <div
                           key={item.id}
                           className={cn(
-                            "max-w-[85%] rounded-lg border px-3.5 py-2.5 text-sm",
-                            fromStudent
-                              ? "border-[#E5E5E5] bg-[#F7F7F7]"
-                              : "ml-auto border-[#CFE0F7] bg-[#F5F9FF]",
+                            "w-fit max-w-[85%] py-1 text-sm",
+                            !fromStudent && "ml-auto",
                           )}
                         >
-                          <p className="mb-1 text-[11px] font-semibold text-[#5A5A5A]">
+                          <p
+                            className={cn(
+                              "mb-0.5 text-[11px] font-semibold",
+                              fromStudent ? "text-[#4472A8]" : "text-[#8A8A8A]",
+                            )}
+                          >
                             {fromStudent ? "Student" : "Staff"}
                           </p>
                           <p className="whitespace-pre-wrap break-words text-[#111111]">
                             {item.message}
                           </p>
+                          <TicketAttachmentList
+                            attachments={item.attachments}
+                            align={fromStudent ? "start" : "end"}
+                            compact
+                          />
                           <time
                             dateTime={item.created_at}
-                            className="mt-1 block text-[10px] text-[#6F6F6F]"
+                            className="mt-0.5 block text-[10px] text-[#9A9A9A]"
                           >
                             {formatTicketDate(item.created_at)}
                           </time>
@@ -310,6 +335,13 @@ export function AdminTicketQueue() {
                         className="mt-1 w-full resize-y rounded-md border border-[#DADADA] px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                       />
                     </label>
+                    <TicketAttachmentComposer
+                      ticketId={selected.id}
+                      value={pendingAttachments}
+                      onChange={setPendingAttachments}
+                      disabled={replyBusy}
+                      compact
+                    />
                     {replyError && (
                       <p role="alert" className="text-sm text-[#9B3A2A]">
                         {replyError}
@@ -325,7 +357,11 @@ export function AdminTicketQueue() {
                         <UserCheck className="size-3.5" />
                         Assign…
                       </Button>
-                      <Button type="submit" disabled={replyBusy || !reply.trim()} className="gap-1.5">
+                      <Button
+                        type="submit"
+                        disabled={replyBusy || (!reply.trim() && pendingAttachments.length === 0)}
+                        className="gap-1.5"
+                      >
                         <Send className="size-3.5" />
                         {replyBusy ? "Sending…" : "Reply"}
                       </Button>
