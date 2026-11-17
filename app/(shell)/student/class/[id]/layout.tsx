@@ -55,7 +55,6 @@ export default function StudentClassWorkspaceLayout({
     { id: "agent", label: "Q&A Chat", href: `/student/class/${id}/agent` },
     { id: "tickets", label: "My Tickets", href: `/student/class/${id}/tickets` },
     { id: "schedule", label: "Schedule", href: `/student/class/${id}/schedule` },
-    { id: "attendance", label: "Attendance", href: `/student/class/${id}/attendance` },
     { id: "members", label: "Members", href: `/student/class/${id}/members` },
   ];
 

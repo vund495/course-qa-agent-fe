@@ -38,40 +38,40 @@ the existing `Table`, `Modal`, `Alert`, `EmptyState`, `Button`, `AppSelect`, and
 
 | Route | File |
 |---|---|
-| `/teacher/class/[id]/attendance` | `app/(shell)/teacher/class/[id]/attendance/page.tsx` |
+| `/teacher/attendance` | `app/(shell)/teacher/attendance/page.tsx` |
+| `/teacher/class/[id]/attendance` | `app/(shell)/teacher/class/[id]/attendance/page.tsx` — redirects to `/teacher/attendance?classId=[id]` |
 
-Tab order becomes:
+Attendance is a top-level workspace with a class picker, so it no longer has a
+class tab. The teacher tab row stays:
 
 ```text
-Overview → Syllabus → Q&A Chat → Tickets → Quiz Import → Attendance → Members
-→ Course Settings
-```
-
-Insert **Attendance after `Quiz Import`, before `Members`**. Keep the existing
-tab order otherwise. The desktop tab row will have eight items; check the
-1024 px layout and add `overflow-x-auto` to the nav if it overflows.
-
-```ts
-{ id: "attendance", label: "Attendance", href: `/teacher/class/${id}/attendance` }
+Overview → Syllabus → Q&A Chat → Tickets → Skills & Rubrics → Question Bank
+→ Quizzes → Members → Course Settings
 ```
 
 ### 2.2 Student
 
 | Route | File |
 |---|---|
-| `/student/class/[id]/attendance` | `app/(shell)/student/class/[id]/attendance/page.tsx` |
+| `/student/attendance` | `app/(shell)/student/attendance/page.tsx` |
+| `/student/class/[id]/attendance` | `app/(shell)/student/class/[id]/attendance/page.tsx` — redirects to `/student/attendance?classId=[id]` |
 
-Tab order becomes:
+The student workspace mirrors the teacher one:
+
+* sidebar link **Attendance** under **Home** (`components/shared/Sidebar.tsx`),
+* `StudentAttendancePage` loads the student's classes and keeps the selection
+  in `?classId=`, falling back to the first enrolled class,
+* `StudentAttendanceView` holds the month picker and history table and is shared
+  by the workspace,
+* no Attendance tab in `student/class/[id]/layout.tsx`; the legacy class URL
+  redirects so old bookmarks keep working,
+* read-only: no leave requests, schedule editing, or session controls.
+
+Tab order stays:
 
 ```text
-Overview → Syllabus → Q&A Chat → My Tickets → Attendance → Members
+Overview → Syllabus → Quizzes → Q&A Chat → My Tickets → Schedule → Members
 ```
-
-Insert **Attendance after `My Tickets`, before `Members`**.
-
-The existing `classSectionFromPathname()` already preserves a single nested
-section such as `attendance`, so the mobile class switcher will link to the same
-tab in another class without extra work.
 
 ### 2.3 Admin
 
@@ -99,15 +99,19 @@ features/attendance/
 ├── attendance-summary-table.tsx         [NEW]
 ├── attendance-schedule-manager.tsx      [NEW]
 ├── student-attendance-history.tsx       [NEW]
+├── student-attendance-view.tsx          [NEW] month picker + history body
+├── student-attendance-page.tsx          [NEW] workspace class picker
 ├── admin-attendance-modal.tsx           [NEW]
 ├── attendance-empty-state.tsx           [NEW] optional shared empty/error block
 └── *.test.tsx                           [NEW]
 
 app/(shell)/
-├── teacher/class/[id]/attendance/page.tsx   [NEW]
-├── student/class/[id]/attendance/page.tsx   [NEW]
-├── teacher/class/[id]/layout.tsx            [EDIT] add tab
-├── student/class/[id]/layout.tsx            [EDIT] add tab
+├── teacher/attendance/page.tsx              [NEW] top-level workspace
+├── teacher/class/[id]/attendance/page.tsx   [EDIT] redirect
+├── student/attendance/page.tsx              [NEW] top-level workspace
+├── student/class/[id]/attendance/page.tsx   [EDIT] redirect
+├── teacher/class/[id]/layout.tsx            [EDIT] no attendance tab
+├── student/class/[id]/layout.tsx            [EDIT] no attendance tab
 └── admin/classes/page.tsx                   [EDIT] add action + modal
 ```
 
@@ -346,16 +350,16 @@ week picker above the session list and the sheet below.
 
 ---
 
-## 5. Student tab
+## 5. Student workspace
 
 ### 5.1 Layout
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ My attendance                         Attendance rate: 87.5% │
-│ 7 / 8 sessions                                               │
+│ My Attendance                              [Class ▾] [Refresh]│
+│ View your attendance history, sessions, and attendance rate. │
 ├──────────────────────────────────────────────────────────────┤
-│ Nov 2026 ▾                                                   │
+│ Nov 2026 ▾                        [‹] [This month] [›]       │
 │ ┌────────────┬──────────────┬────────────┬─────────────────┐ │
 │ │ Date       │ Session      │ Status     │ Note            │ │
 │ │ Mon 02/11  │ 19:00–21:00  │ ● Present  │                 │ │
@@ -364,6 +368,9 @@ week picker above the session list and the sheet below.
 │ └────────────┴──────────────┴────────────┴─────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+The class picker lives in the header, matching `/teacher/attendance`. Switching
+class replaces `?classId=` and remounts the view for the new class.
 
 ### 5.2 Requirements
 
@@ -377,7 +384,8 @@ week picker above the session list and the sheet below.
   * `Not marked` — neutral grey.
 * Show `—` for a missing rate and `Not marked` for `status = null`.
 * The page must never request or render another student's data.
-* Empty: `No attendance yet`.
+* Empty: `No attendance yet`; no enrolled classes: `No enrolled classes` with
+  `Attendance will appear after you enroll in a class.`
 * Error: `We couldn't load your attendance.` + `Retry`.
 
 ### 5.3 Student state matrix
@@ -529,15 +537,16 @@ backend supports partial payloads; sending all rows is simpler and still valid.
 | `features/attendance/attendance-schedule-manager.test.tsx` | 3 tests: add/delete schedule, ad-hoc form, validation errors | [x] Passed (3/3) |
 | `features/attendance/student-attendance-history.test.tsx` | 13 tests: loading/empty/error/success, chips, unmarked row, metric cards | [x] Passed (13/13) |
 | `features/attendance/admin-attendance-modal.test.tsx` | 7 tests: open/close, fetch summary, empty, error + retry | [x] Passed (7/7) |
-| `app/(shell)/teacher/class/[id]/attendance/page.test.tsx` | 5 tests: teacher attendance workspace lifecycle, session auto-select | [x] Passed (5/5) |
-| `app/(shell)/student/class/[id]/attendance/page.test.tsx` | 5 tests: student attendance workspace lifecycle, month filter | [x] Passed (5/5) |
+| `features/attendance/teacher-attendance-page.test.tsx` | 2 tests: class selection, URL fallback | [x] Passed (2/2) |
+| `features/attendance/student-attendance-view.test.tsx` | 8 tests: history lifecycle, month filter, class filter slot | [x] Passed (8/8) |
+| `features/attendance/student-attendance-page.test.tsx` | 4 tests: class selection, URL fallback, no classes, load error | [x] Passed (4/4) |
 
 **Total Suite Result:** 72/72 tests passed (100%), 0 TypeScript error (`npx tsc --noEmit`), 0 ESLint error (`npm run lint`).
 
 Manual checks:
 
 1. [x] Teacher tab appears in the right position (`Overview → Syllabus → Q&A Chat → Tickets → Quiz Import → Attendance → Members → Course Settings`); route works.
-2. [x] Student tab appears in the right position (`Overview → Syllabus → Q&A Chat → My Tickets → Attendance → Members`); route works.
+2. [x] Student sidebar **Attendance** opens `/student/attendance`; the legacy `/student/class/[id]/attendance` URL redirects with `?classId=`, and no Attendance tab remains in the class tab row.
 3. [x] 1024 px desktop: eight teacher tabs fit with `overflow-x-auto` smooth scroll.
 4. [x] Mobile 390 px: week picker, session list, and sheet remain usable (`min-w-[620px]` responsive table wrapper).
 5. [x] User confirmation: `ConfirmDialog` protects "Mark all present", "Save attendance", status switching, and schedule deletion.
