@@ -27,8 +27,8 @@ const TicketNotificationsContext = React.createContext<TicketNotificationsValue 
 const AUTO_DISMISS_MS = 4_000;
 const NOTICE_TRANSITION_MS = 320;
 
-export function ticketNotificationHref(ticket: Pick<TicketInboxItem, "id" | "class_id">, audience: "trainer" | "student" = "trainer"): string {
-  return `/${audience === "student" ? "student" : "teacher"}/class/${ticket.class_id}/tickets?ticket_id=${encodeURIComponent(ticket.id)}`;
+export function ticketNotificationHref(ticket: Pick<TicketInboxItem, "id">, audience: "trainer" | "student" = "trainer"): string {
+  return `/${audience === "student" ? "student" : "teacher"}/tickets?ticket_id=${encodeURIComponent(ticket.id)}`;
 }
 
 export function TicketNotificationsProvider({
