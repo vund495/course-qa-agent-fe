@@ -14,19 +14,24 @@ export default function QuizzesPage() {
   const [isBlueprintOpen, setIsBlueprintOpen] = React.useState(false);
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Quizzes"
         subtitle="Generate standardized assessments from Question Bank blueprint matrix or import from Excel."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={() => setIsBlueprintOpen(true)}
-              className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+              variant="outline"
+              className="h-9 gap-1.5 border-white bg-white px-3.5 text-[var(--brand-ink)] hover:bg-[#E5EFF8] hover:text-[var(--brand-ink)]"
             >
               <Sparkles className="h-4 w-4" /> Generate Quiz (AI Blueprint)
             </Button>
-            <Button asChild variant="outline">
+            <Button
+              asChild
+              variant="outline"
+              className="h-9 gap-1.5 border-white/25 bg-transparent px-3.5 text-white hover:bg-white/10 hover:text-white"
+            >
               <Link href={`/teacher/class/${id}/quizzes/import`}>
                 <Upload className="h-4 w-4" /> Import quiz
               </Link>

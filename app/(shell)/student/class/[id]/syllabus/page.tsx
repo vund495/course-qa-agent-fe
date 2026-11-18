@@ -58,7 +58,7 @@ export default function StudentClassSyllabusPage() {
         <div className="rounded-lg border border-[#DADADA] bg-white px-4 py-3.5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 id="student-materials-heading" className="text-[15px] font-bold text-[#111111]">
+              <h3 id="student-materials-heading" className="text-[14px] font-bold text-[#111111]">
                 Materials
               </h3>
               <p className="text-[13px] text-[#5A5A5A] mt-0.5">

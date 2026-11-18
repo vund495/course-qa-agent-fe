@@ -36,9 +36,9 @@ const LEVEL_META: Record<
   },
   PROFICIENT: {
     label: "Proficient",
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    text: "text-amber-700",
+    bg: "bg-muted",
+    border: "border-border",
+    text: "text-foreground",
     ringPercent: 80,
   },
   MASTER: {
@@ -123,11 +123,11 @@ export function SkillRadarChart({ radarItems }: SkillRadarChartProps) {
       </div>
 
       {hasAnyGap && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3.5 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-900">
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3.5">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="text-xs text-foreground">
             <p className="font-semibold">Foundation Gap Alert Detected</p>
-            <p className="mt-0.5 text-amber-800 leading-relaxed">
+            <p className="mt-0.5 leading-relaxed text-muted-foreground">
               One or more skills have a prerequisite foundation gap: questions at higher difficulty
               levels were answered correctly, but foundational novice-level questions were missed.
               Review the detailed breakdown below to reinforce core concepts.
@@ -277,9 +277,9 @@ export function SkillRadarChart({ radarItems }: SkillRadarChartProps) {
                     {hasGaps && (
                       <Badge
                         variant="outline"
-                        className="text-[10.5px] border-amber-300 bg-amber-50 text-amber-800 flex items-center gap-1 py-0.5"
+                        className="flex items-center gap-1 border-border bg-muted py-0.5 text-[10.5px] text-foreground"
                       >
-                        <AlertTriangle className="h-3 w-3 text-amber-600" /> Gap Alert
+                        <AlertTriangle className="h-3 w-3 text-muted-foreground" /> Gap Alert
                       </Badge>
                     )}
                     {levelInfo ? (

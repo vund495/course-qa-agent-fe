@@ -93,7 +93,7 @@ export function ContentGapOverviewCard({
 
   // --- PAGINATION ---
   const [currentPage, setCurrentPage] = React.useState<number>(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
 
   // --- FETCH REAL DATA FROM BACKEND ---
   const fetchLiveGaps = React.useCallback(async () => {
@@ -374,7 +374,7 @@ export function ContentGapOverviewCard({
   const renderPriorityBadge = (priority: PriorityLevel, reason: string) => {
     let bg = "bg-slate-50 text-slate-600 border-slate-200";
     if (priority === "High") bg = "bg-rose-50 text-rose-700 border-rose-200/80";
-    if (priority === "Medium") bg = "bg-amber-50 text-amber-700 border-amber-200/80";
+    if (priority === "Medium") bg = "bg-muted text-foreground border-border";
     if (priority === "Info") bg = "bg-blue-50 text-blue-700 border-blue-200/80";
 
     return (

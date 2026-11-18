@@ -50,6 +50,14 @@ export type ClassSession = {
   note: string | null;
   student_count: number;
   marked_count: number;
+  is_holiday?: boolean;
+  holiday_name?: string | null;
+  trainer_on_leave?: boolean;
+  trainer_leave?: {
+    id: string; date_from: string; date_to: string;
+    reason_type: string | null; reason_details: string | null;
+    target_trainer_id: string | null; target_trainer_name: string | null;
+  } | null;
 };
 
 export type CreateSessionBody = {
@@ -129,6 +137,40 @@ export type StudentAttendance = {
   attended: number;
   attendance_rate: number | null;
   items: StudentAttendanceItem[];
+};
+
+export type HolidayType = "solar" | "lunar" | "admin";
+export type HolidayScope = "system" | "class";
+
+export type StudentScheduleHoliday = {
+  date: string; // YYYY-MM-DD
+  name: string;
+  type: HolidayType;
+  scope: HolidayScope;
+};
+
+export type StudentScheduleSession = Pick<ClassSession, "is_holiday" | "holiday_name" | "trainer_on_leave" | "trainer_leave"> & {
+  id: string;
+  date: string; // YYYY-MM-DD
+  start_at: string; // ISO datetime
+  end_at: string; // ISO datetime
+  subject: string;
+  trainer_name: string | null;
+  status: SessionStatus;
+  attendance_status: AttendanceStatus | null;
+  attendance_note: string | null;
+};
+
+export type StudentSchedule = {
+  class_id: string;
+  class_code: string;
+  class_name: string;
+  date_from: string;
+  date_to: string;
+  today: string; // Vietnam-local date
+  meeting_url: string | null;
+  sessions: StudentScheduleSession[];
+  holidays: StudentScheduleHoliday[];
 };
 
 function token(): string | null {
@@ -259,6 +301,15 @@ export const attendanceApi = {
   ): Promise<StudentAttendance> =>
     attendanceFetch<StudentAttendance>(
       `/api/student/classes/${encodeURIComponent(classId)}/attendance${buildQuery(from, to)}`,
+    ),
+
+  mySchedule: (
+    classId: string,
+    from?: string,
+    to?: string,
+  ): Promise<StudentSchedule> =>
+    attendanceFetch<StudentSchedule>(
+      `/api/student/classes/${encodeURIComponent(classId)}/schedule${buildQuery(from, to)}`,
     ),
 };
 

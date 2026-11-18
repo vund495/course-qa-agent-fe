@@ -483,7 +483,7 @@ export function QuizReview({ classId, quizId }: { classId: string; quizId: strin
         </div>
 
         {!isDraft && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
             Reopen the quiz to edit its questions.
           </p>
         )}
@@ -515,7 +515,7 @@ export function QuizReview({ classId, quizId }: { classId: string; quizId: strin
                         <span>·</span>
                         <span>{question.difficulty}</span>
                         {question.validation_flags.length > 0 && (
-                          <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800">
+                          <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-foreground">
                             {question.validation_flags.includes("LOW_CONFIDENCE")
                               ? "Low confidence"
                               : question.validation_flags.join(", ")}

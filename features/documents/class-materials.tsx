@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Upload, X } from "lucide-react";
+import { AlertTriangle, LoaderCircle, Upload, X } from "lucide-react";
 import { AppSelect } from "@/components/ui/app-select";
+import { Button } from "@/components/ui/button";
 import { AUTH_TOKEN_KEY } from "@/components/ui/nav-config";
 import { FileTypeIcon, fileTypeTone } from "@/components/shared/FileTypeIcon";
 import { Reveal, SkeletonLine } from "@/components/shared/page-skeleton";
@@ -20,12 +21,14 @@ import {
   ApiError,
   acceptedExtensions,
   approveDocument,
+  attachDocumentToSyllabus,
   backendUrl,
   canPreviewDocument,
   deleteDocument,
   downloadDocumentFile,
   fetchDocumentFile,
   fetchDocuments,
+  fetchTeacherSyllabus,
   formatFileSize,
   formatRelevanceReason,
   isRelevanceWarning,
@@ -38,7 +41,7 @@ import {
   type DocumentItem,
 } from "@/lib/documents";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 const STATUS_LABEL: Record<DocumentItem["status"], string> = {
   pending: "Pending approval",
@@ -67,6 +70,54 @@ const STATUS_TEXT: Record<DocumentItem["status"], string> = {
   replaced: "text-[#5A5A5A]",
 };
 
+// Compact, uniform action buttons keep the actions column stable from row to
+// row instead of letting a different button count wrap into a ragged stack.
+const ACTION_BUTTON =
+  "rounded border px-2.5 py-1.5 text-[11.5px] font-semibold shadow-xs transition-colors disabled:opacity-50";
+const ACTION_NEUTRAL = `${ACTION_BUTTON} border-[#CFCFCF] bg-white text-[#111111] hover:bg-[#F7F7F7]`;
+const ACTION_WARNING = `${ACTION_BUTTON} border-[#B4881F] bg-[#FFFDF5] text-[#8F6B16] hover:bg-[#FFF9E6]`;
+const ACTION_REJECT = `${ACTION_BUTTON} border-[#E1B4A8] bg-white text-[#9D4C38] hover:bg-[#FFF7F5]`;
+const ACTION_DELETE = `${ACTION_BUTTON} border-[#DFB2A6] bg-white text-[#9D4C38] hover:bg-[#FFF7F5]`;
+
+/** Replace is only meaningful once the document has completed approval/indexing. */
+function isReplaceEligible(item: DocumentItem): boolean {
+  return item.status === "indexed";
+}
+
+function matchesActiveFilters(item: DocumentItem, filters: DocumentFilters): boolean {
+  const search = filters.search.trim().toLowerCase();
+  if (search && !item.fileName.toLowerCase().includes(search)) return false;
+  if (filters.status !== "all" && item.status !== filters.status) return false;
+  if (filters.fileType !== "all" && item.fileType !== filters.fileType) return false;
+  return true;
+}
+
+function fileMatchesActiveFilters(
+  fileName: string,
+  fileType: string,
+  filters: DocumentFilters,
+): boolean {
+  const search = filters.search.trim().toLowerCase();
+  if (search && !fileName.toLowerCase().includes(search)) return false;
+  // A row whose POST is still in flight has no server status yet, so it cannot
+  // satisfy a status filter. It can still satisfy a type/search filter.
+  if (filters.status !== "all") return false;
+  if (filters.fileType !== "all" && filters.fileType !== fileType) return false;
+  return true;
+}
+
+function fileTypeOf(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  return dot === -1 ? "" : fileName.slice(dot).toLowerCase();
+}
+
+type PendingUpload = {
+  key: string;
+  fileName: string;
+  fileType: string;
+  sizeBytes: number;
+};
+
 type UploadState =
   | { status: "idle" }
   | { status: "uploading" }
@@ -76,11 +127,17 @@ type UploadState =
 export function ClassMaterials({
   classId,
   className,
+  refreshKey = 0,
+  changeSource = "initial",
   onIndexedChange,
+  onDataChanged,
 }: {
   classId: string;
   className?: string;
+  refreshKey?: number;
+  changeSource?: string;
   onIndexedChange?: () => void;
+  onDataChanged?: (source: string) => void;
 }) {
   const router = useRouter();
   const [uploadOpen, setUploadOpen] = React.useState(false);
@@ -96,6 +153,7 @@ export function ClassMaterials({
   const [loading, setLoading] = React.useState(true);
   const [processingExists, setProcessingExists] = React.useState(false);
   const [listError, setListError] = React.useState<string | null>(null);
+  const [refreshNotice, setRefreshNotice] = React.useState<string | null>(null);
   const [approvingId, setApprovingId] = React.useState<string | null>(null);
   const [rejectingId, setRejectingId] = React.useState<string | null>(null);
   const [retryingId, setRetryingId] = React.useState<string | null>(null);
@@ -110,6 +168,16 @@ export function ClassMaterials({
   } | null>(null);
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
   const [actionError, setActionError] = React.useState<string | null>(null);
+  const [syllabusGate, setSyllabusGate] = React.useState<{
+    documentId: string;
+    canApprove: boolean;
+    isDraft: boolean;
+    units: { unitNumber: number; unitTitle: string }[];
+  } | null>(null);
+  const [attachTarget, setAttachTarget] = React.useState<DocumentItem | null>(null);
+  const [attachUnit, setAttachUnit] = React.useState("");
+  const [attachingId, setAttachingId] = React.useState<string | null>(null);
+  const [attachError, setAttachError] = React.useState<string | null>(null);
   const [pendingRelevanceConfirm, setPendingRelevanceConfirm] = React.useState<DocumentItem | null>(null);
   const [pendingUploadWarning, setPendingUploadWarning] = React.useState<{
     file: File;
@@ -118,14 +186,28 @@ export function ClassMaterials({
   const replaceInputRef = React.useRef<HTMLInputElement>(null);
 
   const [files, setFiles] = React.useState<File[]>([]);
+  const [pendingUploads, setPendingUploads] = React.useState<PendingUpload[]>([]);
   const [fileErrors, setFileErrors] = React.useState<string[]>([]);
   const [uploadState, setUploadState] = React.useState<UploadState>({ status: "idle" });
   const [dragging, setDragging] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadSeq = React.useRef(0);
+  const filtersRef = React.useRef(filters);
+  const pageRef = React.useRef(page);
+  const documentsRef = React.useRef(documents);
+
+  const notifyChanged = React.useCallback(
+    (source: string) => {
+      if (onDataChanged) onDataChanged(source);
+      else onIndexedChange?.();
+    },
+    [onDataChanged, onIndexedChange],
+  );
 
   const load = React.useCallback(
     async (f: DocumentFilters, p: number, silent = false) => {
+      const seq = ++loadSeq.current;
       const token = localStorage.getItem(AUTH_TOKEN_KEY);
       if (!token) {
         router.push("/login");
@@ -133,44 +215,129 @@ export function ClassMaterials({
       }
       if (!silent) setLoading(true);
       try {
-        const { items, total: t } = await fetchDocuments(
-          { token },
-          {
-            search: f.search.trim() || undefined,
-            classId,
-            fileType: f.fileType === "all" ? undefined : f.fileType,
-            status: f.status === "all" ? undefined : f.status,
-            page: p,
-            pageSize: PAGE_SIZE,
-          },
-        );
+        const [documentsResult, gate] = await Promise.all([
+          fetchDocuments(
+            { token },
+            {
+              search: f.search.trim() || undefined,
+              classId,
+              fileType: f.fileType === "all" ? undefined : f.fileType,
+              status: f.status === "all" ? undefined : f.status,
+              page: p,
+              pageSize: PAGE_SIZE,
+            },
+          ),
+          fetchTeacherSyllabus({ token }, classId).catch(() => null),
+        ]);
+        if (seq !== loadSeq.current) return;
+        const { items, total: t } = documentsResult;
         setDocuments(items);
         setTotal(t);
+        setSyllabusGate(
+          gate?.documentId
+            ? {
+                documentId: gate.documentId,
+                canApprove: gate.canApprove,
+                isDraft: gate.isDraft,
+                units: gate.units.map((unit) => ({
+                  unitNumber: unit.unitNumber,
+                  unitTitle: unit.unitTitle,
+                })),
+              }
+            : null,
+        );
         setListError(null);
       } catch (err) {
+        if (seq !== loadSeq.current) return;
         if (err instanceof ApiError && err.status === 401) {
           router.push("/login");
           return;
         }
-        setDocuments([]);
-        setTotal(0);
+        // Keep rows already accepted by an upload visible; the error banner
+        // tells the user the refresh failed and offers Retry.
         setListError(
           err instanceof ApiError
             ? `Backend error ${err.status}: ${err.message}`
-            : `Cannot reach backend at ${backendUrl()} — check the BE is running (docker compose up), then Retry; or open this page via http://localhost:3000 (BE CORS only allows that origin).`,
+            : `Cannot reach backend at ${backendUrl()} - check the BE is running (docker compose up), then Retry; or open this page via http://localhost:3000 (BE CORS only allows that origin).`,
         );
       } finally {
-        if (!silent) setLoading(false);
+        // A silent sibling refresh can supersede an in-flight initial load;
+        // the newest request must clear the skeleton even when it is silent.
+        if (seq === loadSeq.current) setLoading(false);
       }
     },
     [classId, router],
   );
+
+  // Show accepted uploads immediately. The later list refresh reconciles
+  // statuses/pagination; it must not be the only way a new row becomes visible.
+  function mergeUploadedDocuments(uploaded: DocumentItem[]) {
+    if (uploaded.length === 0) return;
+    const activeFilters = filtersRef.current;
+    const visible = uploaded.filter((item) => matchesActiveFilters(item, activeFilters));
+    if (visible.length === 0) {
+      setRefreshNotice(
+        "New or updated uploads may be hidden by the current search or filters.",
+      );
+      return;
+    }
+    const known = new Set(documentsRef.current.map((document) => document.id));
+    const additions = visible.filter((item) => !known.has(item.id));
+    if (additions.length === 0) return;
+    setDocuments((current) => {
+      const currentIds = new Set(current.map((document) => document.id));
+      const fresh = additions.filter((item) => !currentIds.has(item.id));
+      return fresh.length > 0 ? [...fresh, ...current].slice(0, PAGE_SIZE) : current;
+    });
+    setTotal((current) => current + additions.length);
+  }
+
+  function pendingRowsFor(chosen: File[]): PendingUpload[] {
+    const activeFilters = filtersRef.current;
+    return chosen
+      .map((file, index) => ({
+        key: `${file.name}-${file.size}-${file.lastModified}-${index}`,
+        fileName: file.name,
+        fileType: fileTypeOf(file.name),
+        sizeBytes: file.size,
+      }))
+      .filter((row) =>
+        fileMatchesActiveFilters(row.fileName, row.fileType, activeFilters),
+      );
+  }
 
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch; load() only sets state after await.
     void load(filters, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only initial sync
   }, [classId]);
+
+  React.useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+  React.useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+  React.useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  React.useEffect(() => {
+    if (refreshKey === 0 || changeSource === "materials") return;
+    const activeFilters = filtersRef.current;
+    const hasFilter =
+      activeFilters.status !== "all" ||
+      activeFilters.fileType !== "all" ||
+      activeFilters.search.trim() !== "";
+    setRefreshNotice(
+      hasFilter
+        ? "New or updated uploads may be hidden by the current search or filters."
+        : null,
+    );
+    // A sibling upload/attach/approve changed the shared data; reload the
+    // current filtered page without resetting filters or upload dialog state.
+    void load(activeFilters, pageRef.current, true);
+  }, [refreshKey, changeSource, load]);
 
   const refreshProcessingStatus = React.useCallback(async () => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -183,11 +350,11 @@ export function ClassMaterials({
       const processing = result.total > 0;
       setProcessingExists(processing);
       if (processing || processingExists) await load(filters, page, true);
-      if (!processing && processingExists) onIndexedChange?.();
+      if (!processing && processingExists) notifyChanged("materials");
     } catch {
       // The normal list request reports backend failures; status polling can retry.
     }
-  }, [classId, filters, load, onIndexedChange, page, processingExists]);
+  }, [classId, filters, load, notifyChanged, page, processingExists]);
 
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- starts async status polling; updates happen after fetch resolves.
@@ -204,6 +371,7 @@ export function ClassMaterials({
 
   function handleFiltersChange(next: DocumentFilters) {
     setFilters(next);
+    setRefreshNotice(null);
     setPage(1);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => void load(next, 1), 350);
@@ -224,34 +392,31 @@ export function ClassMaterials({
       return;
     }
     setUploadState({ status: "uploading" });
+    setPendingUploads(pendingRowsFor([file]));
     try {
-      const form = new FormData();
-      form.set("class_id", classId);
-      form.append("files", file);
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/documents/?force=true`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form },
-      );
-      if (!res.ok) throw new ApiError(res.status);
-      const body = (await res.json()) as {
-        uploaded: { file_name: string; error: string | null; warning?: string | null }[];
-      };
-      const failed = body.uploaded.filter((u) => u.error !== null);
-      if (failed.length > 0) {
-        setFileErrors(failed.map((f) => `${f.file_name}: ${f.error ?? "rejected"}`));
+      const [outcome] = await uploadDocuments({ token }, classId, [file], {
+        force: true,
+      });
+      setPendingUploads([]);
+      if (!outcome || outcome.error || outcome.warning || !outcome.item) {
+        const reason = outcome?.error ?? outcome?.warning ?? "File upload was rejected.";
+        setFileErrors([`${file.name}: ${reason}`]);
         setUploadState({ status: "error", message: "File upload was rejected." });
-      } else {
-        setFiles((prev) => prev.filter((f) => f.name !== file.name));
-        setFileErrors([]);
-        if (inputRef.current) inputRef.current.value = "";
-        setUploadState({
-          status: "done",
-          message: `Uploaded "${file.name}" for approval.`,
-        });
-        setPage(1);
-        await load(filters, 1);
+        return;
       }
+      mergeUploadedDocuments([outcome.item]);
+      setFiles((prev) => prev.filter((f) => f.name !== file.name));
+      setFileErrors([]);
+      if (inputRef.current) inputRef.current.value = "";
+      setUploadState({
+        status: "done",
+        message: `Uploaded "${file.name}" for approval.`,
+      });
+      setPage(1);
+      notifyChanged("materials");
+      await load(filtersRef.current, 1, true);
     } catch (err) {
+      setPendingUploads([]);
       setUploadState({
         status: "error",
         message: err instanceof ApiError ? err.message : "Upload failed.",
@@ -267,25 +432,21 @@ export function ClassMaterials({
     }
     if (files.length === 0) return;
     setUploadState({ status: "uploading" });
+    setPendingUploads(pendingRowsFor(files));
     try {
-      const form = new FormData();
-      form.set("class_id", classId);
-      for (const f of files) form.append("files", f);
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/documents/`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form },
+      const outcomes = await uploadDocuments({ token }, classId, files);
+      setPendingUploads([]);
+      const warned = outcomes.filter(
+        (outcome) => outcome.error === null && outcome.warning !== null,
       );
-      if (!res.ok) throw new ApiError(res.status);
-      const body = (await res.json()) as {
-        uploaded: { file_name: string; error: string | null; warning?: string | null }[];
-      };
-
-      const warned = body.uploaded.filter((u) => Boolean(u.warning));
-      const failed = body.uploaded.filter((u) => u.error !== null);
+      const failed = outcomes.filter((outcome) => outcome.error !== null);
+      const added = outcomes
+        .filter((outcome) => outcome.error === null && outcome.warning === null && outcome.item)
+        .map((outcome) => outcome.item as DocumentItem);
 
       if (warned.length > 0) {
         const firstWarned = warned[0];
-        const matchingFile = files.find((f) => f.name === firstWarned.file_name);
+        const matchingFile = files.find((f) => f.name === firstWarned.fileName);
         if (matchingFile && firstWarned.warning) {
           setPendingUploadWarning({
             file: matchingFile,
@@ -294,23 +455,35 @@ export function ClassMaterials({
         }
       }
 
-      if (failed.length > 0) {
-        setFileErrors(failed.map((f) => `${f.file_name}: ${f.error ?? "rejected"}`));
-        setUploadState({ status: "error", message: "Some files were rejected." });
-      } else if (warned.length === 0) {
-        setFiles([]);
-        setFileErrors([]);
+      if (added.length > 0) {
+        mergeUploadedDocuments(added);
+        const addedNames = new Set(added.map((item) => item.fileName));
+        setFiles((prev) => prev.filter((f) => !addedNames.has(f.name)));
         if (inputRef.current) inputRef.current.value = "";
+        setPage(1);
+      }
+
+      if (failed.length > 0) {
+        setFileErrors(failed.map((f) => `${f.fileName}: ${f.error ?? "rejected"}`));
+        setUploadState({ status: "error", message: "Some files were rejected." });
+      } else if (warned.length > 0) {
+        setUploadState({ status: "idle" });
+      } else {
+        setFileErrors([]);
         setUploadState({
           status: "done",
           message: "Upload successful. Files are pending approval.",
         });
-        setPage(1);
-        await load(filters, 1);
-      } else {
-        setUploadState({ status: "idle" });
+      }
+
+      // A warning/rejection in the same batch must not hide files that were
+      // accepted: refresh the list and the sibling units panel right away.
+      if (added.length > 0) {
+        notifyChanged("materials");
+        await load(filtersRef.current, 1, true);
       }
     } catch (err) {
+      setPendingUploads([]);
       setUploadState({
         status: "error",
         message:
@@ -332,9 +505,10 @@ export function ClassMaterials({
       await approveDocument({ token }, documentId);
       setProcessingExists(true);
       await load(filters, page);
+      notifyChanged("materials");
     } catch (err) {
       setListError(
-        err instanceof ApiError ? `Approve failed (${err.status}).` : "Approve failed.",
+        err instanceof ApiError ? `Approve failed: ${err.message}` : "Approve failed.",
       );
     } finally {
       setApprovingId(null);
@@ -377,6 +551,7 @@ export function ClassMaterials({
     try {
       await rejectDocument({ token }, documentId);
       await load(filters, page);
+      notifyChanged("materials");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         router.push("/login");
@@ -465,7 +640,7 @@ export function ClassMaterials({
       const nextPage = documents.length === 1 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
       await load(filters, nextPage);
-      onIndexedChange?.();
+      notifyChanged("materials");
     } catch (err) {
       setPendingDelete(null);
       if (err instanceof ApiError && err.status === 401) {
@@ -481,6 +656,10 @@ export function ClassMaterials({
   }
 
   function startReplace(document: DocumentItem) {
+    if (!isReplaceEligible(document)) {
+      setActionError("Replace is only available after this file is approved and indexed.");
+      return;
+    }
     setReplaceTarget(document);
     setActionError(null);
     if (replaceInputRef.current) {
@@ -493,8 +672,15 @@ export function ClassMaterials({
     const target = replaceTarget;
     setReplaceTarget(null);
     if (!target || !chosen || chosen.length === 0) return;
+    // The row may have changed status while the file picker was open. Only the
+    // latest loaded document state may start a replacement.
+    const current = documents.find((document) => document.id === target.id);
+    if (!current || !isReplaceEligible(current)) {
+      setActionError("Replace is only available after this file is approved and indexed.");
+      return;
+    }
     const file = chosen[0];
-    const nameError = replaceNameError(target, file);
+    const nameError = replaceNameError(current, file);
     if (nameError) {
       setActionError(nameError);
       return;
@@ -504,14 +690,15 @@ export function ClassMaterials({
       setActionError("Not authenticated. Please log in again.");
       return;
     }
-    setReplacingId(target.id);
+    setReplacingId(current.id);
     setActionError(null);
     try {
-      const [outcome] = await uploadDocuments({ token }, target.classId, [file]);
+      const [outcome] = await uploadDocuments({ token }, current.classId, [file]);
       if (!outcome || outcome.error || !outcome.item) {
         setActionError(outcome?.error ?? "Replace failed.");
       } else {
         await load(filters, page);
+        notifyChanged("materials");
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -526,14 +713,50 @@ export function ClassMaterials({
     }
   }
 
+  async function handleAttach() {
+    if (!attachTarget || !syllabusGate) return;
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    setAttachingId(attachTarget.id);
+    setAttachError(null);
+    try {
+      await attachDocumentToSyllabus(
+        { token },
+        attachTarget.id,
+        syllabusGate.documentId,
+        attachUnit ? Number(attachUnit) : null,
+      );
+      setAttachTarget(null);
+      setAttachUnit("");
+      await load(filters, page);
+      notifyChanged("materials");
+    } catch (err) {
+      setAttachError(
+        err instanceof ApiError
+          ? `Attach failed: ${err.message}`
+          : "Attach failed. Check the connection and try again.",
+      );
+    } finally {
+      setAttachingId(null);
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const visiblePendingUploads = pendingUploads.filter((pending) =>
+    fileMatchesActiveFilters(pending.fileName, pending.fileType, filters),
+  );
+  const isSyllabusDocument = (documentId: string) =>
+    syllabusGate?.documentId === documentId;
 
   return (
     <section className="mt-8 space-y-3" aria-labelledby="class-materials-heading">
       <div className="rounded-lg border border-[#DADADA] bg-white px-4 py-3.5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 id="class-materials-heading" className="text-[15px] font-bold text-[#111111]">
+            <h3 id="class-materials-heading" className="text-[14px] font-bold text-[#111111]">
               Materials
             </h3>
             <p className="mt-0.5 text-[13px] text-[#5A5A5A]">
@@ -724,6 +947,15 @@ export function ClassMaterials({
         <p className="mb-3 text-[13px] text-[#9D4C38]">{actionError}</p>
       )}
 
+      {refreshNotice && (
+        <p
+          role="status"
+          className="mb-3 rounded border border-[#ECDCB8] bg-[#FFF9EA] px-3 py-2 text-[12.5px] text-[#8F6B16]"
+        >
+          {refreshNotice}
+        </p>
+      )}
+
       {loading ? (
         <div className="overflow-hidden rounded-lg border border-[#DADADA] bg-white">
           {[0, 1, 2, 3].map((i) => (
@@ -737,7 +969,7 @@ export function ClassMaterials({
             </div>
           ))}
         </div>
-      ) : documents.length === 0 ? (
+      ) : documents.length === 0 && visiblePendingUploads.length === 0 ? (
         <p className="rounded-lg border border-[#DADADA] bg-white py-8 text-center text-[13px] text-[#5A5A5A]">
           No materials yet — upload the first file for this class.
         </p>
@@ -751,10 +983,47 @@ export function ClassMaterials({
                 <th className="hidden px-4 py-3 md:table-cell">Size</th>
                 <th className="hidden px-4 py-3 md:table-cell">Uploaded</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="w-56 px-4 py-3"></th>
+                <th className="w-px whitespace-nowrap px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#DADADA]">
+              {visiblePendingUploads.map((pending) => (
+                <tr key={pending.key} className="bg-[#FAFAFA]">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${fileTypeTone(pending.fileName)}`}
+                      >
+                        <FileTypeIcon fileName={pending.fileName} className="h-5 w-5" />
+                      </span>
+                      <span className="truncate text-[13.5px] font-medium text-[#111111]">
+                        {pending.fileName}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="hidden px-4 py-3 sm:table-cell">
+                    <span className="rounded bg-[var(--brand-soft)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--brand-ink)]">
+                      {pending.fileType}
+                    </span>
+                  </td>
+                  <td className="hidden px-4 py-3 text-[12.5px] text-[#5A5A5A] md:table-cell">
+                    {formatFileSize(pending.sizeBytes)}
+                  </td>
+                  <td className="hidden px-4 py-3 text-[12.5px] text-[#5A5A5A] md:table-cell">
+                    Just now
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <span
+                      role="status"
+                      className="inline-flex items-center gap-2 text-[12.5px] text-[#5A5A5A]"
+                    >
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      Uploading
+                    </span>
+                  </td>
+                  <td className="px-4 py-3"></td>
+                </tr>
+              ))}
               {documents.map((d) => (
                 <tr key={d.id} className="transition-colors hover:bg-[#FAFAFA]">
                   <td className="px-4 py-3">
@@ -843,54 +1112,76 @@ export function ClassMaterials({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                      {d.status !== "replaced" && (
+                    <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
+                      {d.status !== "replaced" && canPreviewDocument(d) && (
+                        <button
+                          type="button"
+                          onClick={() => void handlePreview(d)}
+                          disabled={
+                            deletingId === d.id ||
+                            replacingId === d.id ||
+                            loading
+                          }
+                          className={ACTION_NEUTRAL}
+                        >
+                          Preview
+                        </button>
+                      )}
+                      {d.status !== "replaced" && d.status !== "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => void handleDownload(d)}
+                          disabled={
+                            downloadingId === d.id ||
+                            deletingId === d.id ||
+                            replacingId === d.id ||
+                            loading
+                          }
+                          className={ACTION_NEUTRAL}
+                        >
+                          {downloadingId === d.id ? "Downloading…" : "Download"}
+                        </button>
+                      )}
+                      {syllabusGate &&
+                        d.id !== syllabusGate.documentId &&
+                        d.status !== "replaced" &&
+                        d.syllabusDocumentId !== syllabusGate.documentId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAttachTarget(d);
+                              setAttachUnit("");
+                              setAttachError(null);
+                            }}
+                            disabled={
+                              attachingId === d.id ||
+                              deletingId === d.id ||
+                              replacingId === d.id ||
+                              loading
+                            }
+                            className={ACTION_WARNING}
+                          >
+                            {attachingId === d.id ? "Attaching…" : "Attach"}
+                          </button>
+                        )}
+                      {d.status === "pending" && (
                         <>
-                          {canPreviewDocument(d) && (
+                          {!isSyllabusDocument(d.id) && (
                             <button
                               type="button"
-                              onClick={() => void handlePreview(d)}
+                              onClick={() => void handleApprove(d.id)}
                               disabled={
+                                approvingId === d.id ||
+                                rejectingId === d.id ||
                                 deletingId === d.id ||
                                 replacingId === d.id ||
                                 loading
                               }
-                              className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
+                              className={ACTION_NEUTRAL}
                             >
-                              Preview
+                              {approvingId === d.id ? "Approving…" : "Approve"}
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => void handleDownload(d)}
-                            disabled={
-                              downloadingId === d.id ||
-                              deletingId === d.id ||
-                              replacingId === d.id ||
-                              loading
-                            }
-                            className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
-                          >
-                            {downloadingId === d.id ? "Downloading…" : "Download"}
-                          </button>
-                        </>
-                      )}
-                      {d.status === "pending" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => void handleApprove(d.id)}
-                            disabled={
-                              approvingId === d.id ||
-                              rejectingId === d.id ||
-                              deletingId === d.id ||
-                              replacingId === d.id ||
-                              loading
-                            }
-                            className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
-                          >
-                            {approvingId === d.id ? "Approving…" : "Approve"}
-                          </button>
                           <button
                             type="button"
                             onClick={() => setPendingReject(d)}
@@ -901,7 +1192,7 @@ export function ClassMaterials({
                               replacingId === d.id ||
                               loading
                             }
-                            className="rounded border border-[#E1B4A8] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#9D4C38] shadow-xs transition-colors hover:bg-[#FFF7F5] disabled:opacity-50"
+                            className={ACTION_REJECT}
                           >
                             {rejectingId === d.id ? "Rejecting…" : "Reject"}
                           </button>
@@ -921,7 +1212,7 @@ export function ClassMaterials({
                                 loading
                               }
                               title="Confirm and add this file to the class anyway"
-                              className="rounded border border-[#B4881F] bg-[#FFFDF5] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#8F6B16] shadow-xs transition-colors hover:bg-[#FFF9E6] disabled:opacity-50"
+                              className={ACTION_WARNING}
                             >
                               {retryingId === d.id ? "Adding…" : "Confirm & Add"}
                             </button>
@@ -936,13 +1227,13 @@ export function ClassMaterials({
                               replacingId === d.id ||
                               loading
                             }
-                            className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
+                            className={ACTION_NEUTRAL}
                           >
                             {retryingId === d.id ? "Retrying…" : "Retry"}
                           </button>
                         </>
                       )}
-                      {d.status !== "replaced" && (
+                      {isReplaceEligible(d) && (
                         <button
                           type="button"
                           onClick={() => startReplace(d)}
@@ -954,7 +1245,7 @@ export function ClassMaterials({
                             approvingId === d.id ||
                             loading
                           }
-                          className="rounded border border-[#CFCFCF] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#111111] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
+                          className={ACTION_NEUTRAL}
                         >
                           {replacingId === d.id ? "Replacing…" : "Replace"}
                         </button>
@@ -970,7 +1261,7 @@ export function ClassMaterials({
                           replacingId === d.id ||
                           loading
                         }
-                        className="rounded border border-[#DFB2A6] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#9D4C38] shadow-xs transition-colors hover:bg-[#F7F7F7] disabled:opacity-50"
+                        className={ACTION_DELETE}
                       >
                         {deletingId === d.id ? "Deleting…" : "Delete"}
                       </button>
@@ -1016,6 +1307,63 @@ export function ClassMaterials({
           </div>
         </div>
       )}
+
+      <Dialog
+        open={attachTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !attachingId) {
+            setAttachTarget(null);
+            setAttachUnit("");
+            setAttachError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Attach {attachTarget?.fileName} to this syllabus?</DialogTitle>
+            <DialogDescription>
+              The material will stay hidden from students until it is approved and the syllabus is approved.
+              Choose a unit or keep it at syllabus level.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <label htmlFor="attach-unit" className="text-[12px] font-semibold text-[#5A5A5A]">
+              Placement
+            </label>
+            <select
+              id="attach-unit"
+              value={attachUnit}
+              onChange={(event) => setAttachUnit(event.target.value)}
+              disabled={Boolean(attachingId)}
+              className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+            >
+              <option value="">Syllabus level (no unit)</option>
+              {syllabusGate?.units.map((unit) => (
+                <option key={unit.unitNumber} value={String(unit.unitNumber)}>
+                  Unit {unit.unitNumber}: {unit.unitTitle}
+                </option>
+              ))}
+            </select>
+          </div>
+          {attachError && (
+            <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
+              {attachError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAttachTarget(null)}
+              disabled={Boolean(attachingId)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void handleAttach()} disabled={Boolean(attachingId)}>
+              {attachingId ? "Attaching." : "Attach material"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={pendingDelete !== null}

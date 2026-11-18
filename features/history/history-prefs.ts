@@ -1,12 +1,12 @@
 const COLLAPSED_KEY = "qa.chat.historyCollapsed";
 
-/** Server render and first client render must agree: default to expanded. */
+/** Server render and first client render must agree: default to the compact rail. */
 export function readHistoryCollapsed(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined") return true;
   try {
-    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+    return window.localStorage.getItem(COLLAPSED_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 

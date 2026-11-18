@@ -10,12 +10,15 @@ import { studentApi, type ClassMember, type JoinRequest } from "@/lib/student-ap
 import { AppSelect } from "@/components/ui/app-select";
 import { AUTH_ROLE_KEY } from "@/components/ui/nav-config";
 import { Reveal, SkeletonLine } from "@/components/shared/page-skeleton";
+import { Pagination } from "@/components/ui/pagination";
+import { paginate } from "@/lib/pagination";
 
 export default function ClassMembersPage() {
   const params = useParams();
   const id = params.id as string;
   const [search, setSearch] = React.useState("");
   const [tab, setTab] = React.useState<"all" | "students" | "teachers">("all");
+  const [page, setPage] = React.useState(1);
   const [members, setMembers] = React.useState<ClassMember[]>([]);
   const [pending, setPending] = React.useState<JoinRequest[]>([]);
   const [canReview, setCanReview] = React.useState(false);
@@ -109,15 +112,19 @@ export default function ClassMembersPage() {
       !q || [m.username, m.email, m.role].some((f) => f.toLowerCase().includes(q));
     return matchesTab && matchesSearch;
   });
+  const { items: pageMembers, page: safePage, pageCount } = paginate(filtered, page);
 
-  const headerActions = (
-    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-      <div className="flex items-center gap-1 rounded-md bg-white/70 p-1">
+  const panelToolbar = (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-1 rounded-lg border border-[#DADADA] bg-[#F7F7F7] p-1">
         {(["all", "students", "teachers"] as const).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
-            className={`px-3 py-1 text-[12px] font-medium rounded transition-all capitalize ${
+            onClick={() => {
+              setTab(t);
+              setPage(1);
+            }}
+            className={`h-7 px-3 text-[12px] font-medium rounded-md transition-all capitalize ${
               tab === t ? "bg-white text-[#111111] shadow-sm" : "text-[#5A5A5A] hover:text-[#111111]"
             }`}
           >
@@ -126,20 +133,23 @@ export default function ClassMembersPage() {
         ))}
       </div>
       <div className="relative">
-        <Search className="absolute left-2.5 top-1.5 h-4 w-4 text-[#5A5A5A]" />
+        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5A5A5A]" />
         <input
           type="text"
           placeholder="Search members"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded border border-[var(--brand-line)] bg-white py-1.5 pl-8 pr-3 text-[12.5px] outline-none focus:border-[#111111] sm:w-64"
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="h-9 w-full rounded-lg border border-[#DADADA] bg-white py-1.5 pl-8 pr-3 text-[12.5px] outline-none focus:border-[#111111] sm:w-64"
         />
       </div>
     </div>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col">
       <ClassPageHeader
         title="Members"
         subtitle="Manage people and class access."
@@ -150,9 +160,10 @@ export default function ClassMembersPage() {
             </span>
           ) : undefined
         }
-        actions={headerActions}
       />
 
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
+      {panelToolbar}
       {canReview && (
         <Reveal>
         <div className="bg-white border border-[#DADADA] rounded-lg overflow-hidden">
@@ -175,7 +186,7 @@ export default function ClassMembersPage() {
                   <tr key={r.id} className="hover:bg-[#FAFAFA]">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-[12px] font-bold text-[#5A5A5A] shrink-0">
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-[12px] font-bold text-muted-foreground">
                           {r.username.charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -239,7 +250,7 @@ export default function ClassMembersPage() {
           </button>
         </div>
       ) : (
-        <Reveal>
+        <Reveal className="flex flex-1 flex-col">
         <MembersTable toolbar={null}>
           {filtered.length === 0 ? (
             <tr>
@@ -248,7 +259,7 @@ export default function ClassMembersPage() {
               </td>
             </tr>
           ) : (
-            filtered.map((m) => (
+            pageMembers.map((m) => (
               <tr key={m.id} className="hover:bg-[#FAFAFA] transition-colors group">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
@@ -303,8 +314,20 @@ export default function ClassMembersPage() {
             ))
           )}
         </MembersTable>
+        {pageCount > 1 && (
+          <div className="mt-3 rounded-lg border border-[#DADADA] bg-white">
+            <Pagination
+              page={safePage}
+              pageCount={pageCount}
+              total={filtered.length}
+              onChange={setPage}
+              itemLabel="members"
+            />
+          </div>
+        )}
         </Reveal>
       )}
+      </div>
     </div>
   );
 }

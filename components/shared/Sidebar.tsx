@@ -17,6 +17,10 @@ import {
   Mail,
   History,
   Activity,
+  Inbox,
+  CalendarDays,
+  CalendarCheck,
+  Ticket,
 } from "lucide-react";
 import { Role, settingsHrefForRole } from "@/components/ui/nav-config";
 import { useAuth } from "@/components/ui/auth-guard";
@@ -26,6 +30,7 @@ import { peekClasses } from "@/lib/class-cache";
 import { classSectionFromPathname } from "@/lib/class-route";
 import { accentFor, studentApi } from "@/lib/student-api";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
+import { AdminLeaveNav } from "@/features/handover/admin-leave-nav";
 import { TicketNotificationBell } from "@/features/tickets/ticket-notifications";
 
 // Class lists come from the backend (student enrollments / trainer ownership).
@@ -135,6 +140,39 @@ export function SidebarNavBody({
             {!collapsed && <span>Home</span>}
           </Link>
 
+          {(role === "trainer" || role === "teaching_assistant") && (
+            <Link
+              href="/teacher/attendance"
+              title="Attendance"
+              className={linkCls(pathname.startsWith("/teacher/attendance"))}
+            >
+              <CalendarCheck className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Attendance</span>}
+            </Link>
+          )}
+
+          {role === "student" && (
+            <Link
+              href="/student/attendance"
+              title="Attendance"
+              className={linkCls(pathname.startsWith("/student/attendance"))}
+            >
+              <CalendarCheck className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Attendance</span>}
+            </Link>
+          )}
+
+          {role !== "admin" && (
+            <Link
+              href={`${basePath}/tickets`}
+              title="Tickets"
+              className={linkCls(pathname === `${basePath}/tickets`)}
+            >
+              <Ticket className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Tickets</span>}
+            </Link>
+          )}
+
           {role === "admin" && (
             <>
               <Link
@@ -152,6 +190,19 @@ export function SidebarNavBody({
               >
                 <BookOpen className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>Classes</span>}
+              </Link>
+              <Link
+                href="/admin/tickets/queue"
+                title="Ticket Queue"
+                className={linkCls(pathname.startsWith("/admin/tickets/queue"))}
+              >
+                <Inbox className="h-4 w-4 shrink-0" />
+                {!collapsed && <span>Ticket Queue</span>}
+              </Link>
+              <AdminLeaveNav collapsed={collapsed} className={linkCls(pathname.startsWith("/admin/leaves"))} />
+              <Link href="/admin/holidays" title="Holiday calendar" className={linkCls(pathname.startsWith("/admin/holidays"))}>
+                <CalendarDays className="h-4 w-4 shrink-0" />
+                {!collapsed && <span>Holiday calendar</span>}
               </Link>
               <Link
                 href="/admin/reports"
@@ -374,7 +425,7 @@ export function AppSidebar({ role }: { role: Role }) {
       />
 
       {/* User Footer — collapsed rail keeps only the ticket bell. */}
-      {(!collapsed || role === "trainer" || role === "student") && (
+      {(!collapsed || role === "trainer" || role === "teaching_assistant" || role === "student") && (
         <div
           className={cn(
             "relative border-t border-[#DADADA]",
@@ -416,7 +467,9 @@ export function AppSidebar({ role }: { role: Role }) {
                   </span>
                   <span className="text-[11px] text-[#5A5A5A]">{roleLabel}</span>
                 </div>
-                {(role === "trainer" || role === "student") && <TicketNotificationBell />}
+                {(role === "trainer" || role === "teaching_assistant" || role === "student") && (
+                  <TicketNotificationBell />
+                )}
                 <button
                   onClick={() => setShowMenu(!showMenu)}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#6F6F6F] hover:bg-[#F7F7F7] hover:text-[#111111]"

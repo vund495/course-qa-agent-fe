@@ -35,6 +35,8 @@ export interface ChatMessageCitation {
   snippet: string;
   document_id: string | null;
   page: number | null;
+  pages?: number[] | null;
+  page_label?: string | null;
   indexes?: number[] | null;
   highlights?: string[] | null;
 }

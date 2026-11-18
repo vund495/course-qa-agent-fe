@@ -21,8 +21,8 @@ afterEach(() => {
 });
 
 describe("history collapse preference", () => {
-  it("defaults to expanded when nothing is stored", () => {
-    expect(readHistoryCollapsed()).toBe(false);
+  it("defaults to collapsed when nothing is stored", () => {
+    expect(readHistoryCollapsed()).toBe(true);
   });
 
   it("round-trips both states", () => {
@@ -33,8 +33,8 @@ describe("history collapse preference", () => {
     expect(readHistoryCollapsed()).toBe(false);
   });
 
-  it("ignores unrelated storage values", () => {
+  it("treats unrelated storage values as collapsed", () => {
     store.set("qa.chat.historyCollapsed", "yes");
-    expect(readHistoryCollapsed()).toBe(false);
+    expect(readHistoryCollapsed()).toBe(true);
   });
 });

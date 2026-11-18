@@ -36,3 +36,30 @@ export const ADMIN_BTN_PRIMARY =
   "flex items-center gap-1.5 px-4 py-2 border border-[#CFCFCF] bg-white hover:bg-[#F7F7F7] text-[#111111] rounded-[10px] text-[13px] font-semibold transition-colors shadow-xs disabled:opacity-50";
 export const ADMIN_BTN_SECONDARY =
   "flex items-center gap-1.5 px-4 py-2 border border-transparent bg-[#F7F7F7] hover:bg-[#F0F0F0] text-[#111111] rounded-[10px] text-[13px] font-semibold transition-colors disabled:opacity-50";
+
+/**
+ * Table-shaped placeholder for admin lists on first load.
+ * Keeps the real card/row footprint so the table does not jump in when data lands.
+ */
+export function AdminTableSkeleton({ rows = 8, columns = 5 }: { rows?: number; columns?: number }) {
+  return (
+    <div className={cn(ADMIN_CARD, "overflow-hidden")} aria-hidden>
+      <div className="flex gap-4 border-b border-[#DADADA] px-5 py-3">
+        {Array.from({ length: columns }).map((_, i) => (
+          <div key={i} className="skeleton-shimmer h-3 rounded bg-[#EDEDED]" style={{ width: `${100 / columns}%` }} />
+        ))}
+      </div>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex items-center gap-4 border-b border-[#F0F0F0] px-5 py-4 last:border-0">
+          {Array.from({ length: columns }).map((_, c) => (
+            <div
+              key={c}
+              className="skeleton-shimmer h-3.5 rounded bg-[#EDEDED]"
+              style={{ width: `${100 / columns}%` }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}

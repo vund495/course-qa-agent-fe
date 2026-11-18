@@ -55,7 +55,7 @@ const STATUS_META: Record<GeminiKeyStatus, { label: string; className: string }>
   },
   cooldown: {
     label: "Cooling down",
-    className: "border-amber-200 bg-amber-50 text-amber-800",
+    className: "border-border bg-muted text-foreground",
   },
   invalid: {
     label: "Invalid",
@@ -547,7 +547,7 @@ export function GeminiKeyPool() {
                           {status.label}
                         </span>
                         {cooling && (
-                          <span className="text-[11px] font-medium text-amber-700">
+                          <span className="text-[11px] font-medium text-muted-foreground">
                             {cooling}
                           </span>
                         )}

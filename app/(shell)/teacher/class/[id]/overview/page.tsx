@@ -54,9 +54,9 @@ export default function TeacherClassOverviewPage() {
 
   if (cold) {
     return (
-      <div className="space-y-6">
+      <div>
         <ClassRecord cls={null} role="teacher" />
-        <SkeletonCard className="h-[180px]" />
+        <SkeletonCard className="h-[180px] -mx-6 rounded-none border-x border-b border-t-0" />
       </div>
     );
   }
@@ -75,7 +75,7 @@ export default function TeacherClassOverviewPage() {
   }
 
   return (
-    <Reveal className="space-y-6">
+    <Reveal className="flex flex-1 flex-col">
       <ClassRecord cls={cls} role="teacher" />
       <ClassInfoCard
         info={info}

@@ -41,7 +41,7 @@ export default function TeacherClassesPage() {
     : classes;
 
   const renderClassCard = (cls: StudentClass) => (
-    <div key={cls.id} className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all hover:-translate-y-0.5 flex flex-col overflow-hidden group cursor-pointer" onClick={() => router.push(`/teacher/class/${cls.id}/overview`)}>
+    <div key={cls.id} className="flex cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md group" onClick={() => router.push(`/teacher/class/${cls.id}/overview`)}>
       <div className="h-2 w-full" style={{ backgroundColor: accentFor(cls.id) }} />
       <div className="p-5 flex-1 flex flex-col">
         <div className="flex items-center justify-between text-[11px] font-bold text-[#94a3b8]  mb-3">
@@ -112,7 +112,7 @@ export default function TeacherClassesPage() {
           {q ? `Nothing matches "${search}".` : "No classes assigned to you yet."}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+        <div className="grid grid-cols-1 gap-6 rounded-2xl border border-[#DCE6F1] bg-[#F4F8FC] p-5 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map(renderClassCard)}
         </div>
       )}

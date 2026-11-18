@@ -9,37 +9,35 @@ import {
 } from "./attendance-status-picker";
 
 describe("AttendanceStatusPicker Component (Render)", () => {
-  it("renders 4 status options matching Backend enum exactly", () => {
+  it("offers only present and unexcused absence for attendance entry", () => {
     const expectedValues = [
       "present",
-      "late",
-      "excused_absence",
       "unexcused_absence",
     ];
     const actualValues = ATTENDANCE_STATUS_OPTIONS.map((o) => o.value);
     expect(actualValues).toEqual(expectedValues);
   });
 
-  it("renders all 4 segmented buttons on desktop with correct labels", () => {
+  it("renders the 2 allowed segmented buttons on desktop", () => {
     const onChange = vi.fn();
     const html = renderToStaticMarkup(
       <AttendanceStatusPicker value="present" onChange={onChange} studentName="Nguyen Van A" />,
     );
 
     expect(html).toContain("Present");
-    expect(html).toContain("Late");
-    expect(html).toContain("Excused");
     expect(html).toContain("Unexcused");
+    expect(html).not.toContain(">Late<");
+    expect(html).not.toContain(">Excused<");
     expect(html).toContain("aria-label=\"Attendance status for Nguyen Van A\"");
   });
 
   it("marks the active status button as pressed", () => {
     const onChange = vi.fn();
     const html = renderToStaticMarkup(
-      <AttendanceStatusPicker value="late" onChange={onChange} />,
+      <AttendanceStatusPicker value="unexcused_absence" onChange={onChange} />,
     );
 
-    // Late button should have aria-pressed="true"
+    // Unexcused button should have aria-pressed="true"
     expect(html).toContain("aria-pressed=\"true\"");
   });
 
@@ -94,7 +92,7 @@ describe("AttendanceStatusPicker Component (Interactions)", () => {
     host.remove();
   });
 
-  it("clicking Late status button calls onChange with 'late'", async () => {
+  it("clicking Unexcused status button calls onChange with 'unexcused_absence'", async () => {
     const onChange = vi.fn();
     await act(async () => {
       root.render(
@@ -103,33 +101,14 @@ describe("AttendanceStatusPicker Component (Interactions)", () => {
     });
 
     const buttons = Array.from(host.querySelectorAll("button"));
-    const lateBtn = buttons.find((b) => b.textContent?.trim() === "Late");
-    expect(lateBtn).not.toBeUndefined();
+    const unexcusedBtn = buttons.find((b) => b.textContent?.trim() === "Unexcused");
+    expect(unexcusedBtn).not.toBeUndefined();
 
     await act(async () => {
-      lateBtn?.click();
+      unexcusedBtn?.click();
     });
 
-    expect(onChange).toHaveBeenCalledWith("late");
-  });
-
-  it("clicking Excused status button calls onChange with 'excused_absence'", async () => {
-    const onChange = vi.fn();
-    await act(async () => {
-      root.render(
-        <AttendanceStatusPicker value="present" onChange={onChange} studentName="Nguyen Van A" />,
-      );
-    });
-
-    const buttons = Array.from(host.querySelectorAll("button"));
-    const excusedBtn = buttons.find((b) => b.textContent?.trim() === "Excused");
-    expect(excusedBtn).not.toBeUndefined();
-
-    await act(async () => {
-      excusedBtn?.click();
-    });
-
-    expect(onChange).toHaveBeenCalledWith("excused_absence");
+    expect(onChange).toHaveBeenCalledWith("unexcused_absence");
   });
 
   it("clicking buttons does not call onChange when disabled", async () => {

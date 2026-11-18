@@ -33,7 +33,7 @@ const DREYFUS_LEVELS = [
   { key: "NOVICE", label: "Novice", bg: "bg-slate-100 text-slate-800 border-slate-300", desc: "Rule-based recall & syntax" },
   { key: "BEGINNER", label: "Beginner", bg: "bg-blue-50 text-blue-700 border-blue-200", desc: "Contextual understanding" },
   { key: "COMPETENT", label: "Competent", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", desc: "Problem solving & application" },
-  { key: "PROFICIENT", label: "Proficient", bg: "bg-amber-50 text-amber-700 border-amber-200", desc: "Holistic analysis & edge cases" },
+  { key: "PROFICIENT", label: "Proficient", bg: "bg-muted text-foreground border-border", desc: "Holistic analysis & edge cases" },
   { key: "MASTER", label: "Master", bg: "bg-purple-50 text-purple-700 border-purple-200", desc: "Intuitive & architectural synthesis" },
 ];
 
@@ -453,7 +453,7 @@ export function QuizBlueprintModal({ open, classId, onClose }: QuizBlueprintModa
                   <span className="font-semibold text-slate-800">{matchingBankCount} items</span>
                 </div>
                 {matchingBankCount < totalQuestions && (
-                  <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <span className="rounded border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
                     Short by {totalQuestions - matchingBankCount} questions
                   </span>
                 )}

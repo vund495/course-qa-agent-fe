@@ -6,6 +6,8 @@ export type ChatCitation = {
   snippet: string;
   documentId: string | null;
   page: number | null;
+  pages?: number[];
+  pageLabel?: string | null;
   indexes: number[];
   highlights: string[];
 };

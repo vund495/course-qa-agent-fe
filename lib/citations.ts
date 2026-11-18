@@ -19,6 +19,12 @@ export function mapHistoryCitation(citation: ChatMessageCitation): ChatCitation 
     snippet,
     documentId: citation.document_id ?? null,
     page: citation.page ?? null,
+    pages: citation.pages && citation.pages.length > 0
+      ? citation.pages
+      : citation.page !== null && citation.page !== undefined
+      ? [citation.page]
+      : [],
+    pageLabel: citation.page_label ?? null,
     indexes: citation.indexes?.length ? citation.indexes : [citation.index],
     highlights,
   };
@@ -77,8 +83,15 @@ export function uniqueCitations(citations: ChatCitation[] | undefined): ChatCita
 /** Human-readable source label used inside the answer text. */
 export function citationInlineLabel(citation: ChatCitation): string {
   const title = citation.title.trim() || 'Source';
-  const page =
-    citation.kind === 'curriculum' && citation.page !== null ? ` - Page ${citation.page}` : '';
+  let page = '';
+  if (citation.kind === 'curriculum') {
+    if (citation.pageLabel) {
+      const isPlural = citation.pages && citation.pages.length > 1;
+      page = ` - ${isPlural ? 'Pages' : 'Page'} ${citation.pageLabel}`;
+    } else if (citation.page !== null) {
+      page = ` - Page ${citation.page}`;
+    }
+  }
   return `${title}${page}`;
 }
 

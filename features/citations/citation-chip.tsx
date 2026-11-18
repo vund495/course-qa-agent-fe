@@ -7,8 +7,7 @@ import { AUTH_TOKEN_KEY } from '@/components/ui/nav-config';
 import { normalizeCitationUrl } from '@/lib/citations';
 import { cn } from '@/lib/utils';
 import type { ChatCitation } from '@/lib/sse';
-import { useRouter, usePathname, useParams } from 'next/navigation';
-import { buildUniversalJumpUrl } from './url-helper';
+import { usePathname, useParams } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -17,11 +16,13 @@ async function fetchSource(citation: ChatCitation, token: string): Promise<Respo
   const base = `${API_URL}/api/chat/sources/${encodeURIComponent(citation.documentId ?? '')}`;
   const headers = { Authorization: `Bearer ${token}` };
 
-  if (citation.page !== null && citation.highlights.length > 0) {
+  const isPdf = !citation.title || citation.title.toLowerCase().endsWith('.pdf');
+  if (isPdf && citation.page !== null && citation.highlights.length > 0) {
+    const pages = citation.pages && citation.pages.length > 0 ? citation.pages : [citation.page];
     const highlighted = await fetch(`${base}/highlight`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: citation.page, passages: citation.highlights }),
+      body: JSON.stringify({ page: citation.page, pages, passages: citation.highlights }),
     });
     if (highlighted.ok) return highlighted;
     // 415 = not a PDF; any other failure also falls back to the plain file.
@@ -30,6 +31,17 @@ async function fetchSource(citation: ChatCitation, token: string): Promise<Respo
 }
 
 async function openClassSource(citation: ChatCitation) {
+  const isDocxOrPptx = Boolean(
+    citation.title &&
+      (citation.title.toLowerCase().endsWith('.docx') ||
+        citation.title.toLowerCase().endsWith('.doc') ||
+        citation.title.toLowerCase().endsWith('.pptx') ||
+        citation.title.toLowerCase().endsWith('.ppt'))
+  );
+  if (isDocxOrPptx) {
+    toast.info('In-document highlighting is available for PDF files. Opening source file.');
+  }
+
   const viewer = window.open('', '_blank');
   if (viewer) viewer.opener = null;
 
@@ -45,9 +57,13 @@ async function openClassSource(citation: ChatCitation) {
       throw new Error(body?.detail || 'The source file could not be opened.');
     }
 
+    const targetPageHeader = response.headers.get('x-target-page');
+    const parsedTargetPage = targetPageHeader ? parseInt(targetPageHeader, 10) : null;
+    const finalPage = parsedTargetPage && !isNaN(parsedTargetPage) ? parsedTargetPage : citation.page;
+
     const objectUrl = URL.createObjectURL(await response.blob());
     // #page jumps the browser's PDF viewer straight to the cited page.
-    const target = citation.page === null ? objectUrl : `${objectUrl}#page=${citation.page}`;
+    const target = finalPage === null ? objectUrl : `${objectUrl}#page=${finalPage}`;
     if (viewer) viewer.location.href = target;
     else window.open(target, '_blank', 'noopener,noreferrer');
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
@@ -58,7 +74,6 @@ async function openClassSource(citation: ChatCitation) {
 }
 
 export function CitationChip({ citation }: { citation: ChatCitation }) {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
   const classId = params?.id as string | undefined;
@@ -67,10 +82,22 @@ export function CitationChip({ citation }: { citation: ChatCitation }) {
   const url = normalizeCitationUrl(citation.url);
   const markers = citation.indexes.length > 0 ? citation.indexes : [citation.index];
   const markerLabel = markers.map((marker) => `[${marker}]`).join('');
+  const pages = citation.pages && citation.pages.length > 0
+    ? citation.pages
+    : citation.page !== null
+    ? [citation.page]
+    : [];
+
+  const pageLabel = citation.pageLabel
+    ? (citation.pages && citation.pages.length > 1 ? `Pages ${citation.pageLabel}` : `Page ${citation.pageLabel}`)
+    : pages.length > 1
+    ? `Pages ${pages.join(', ')}`
+    : pages.length === 1
+    ? `Page ${pages[0]}`
+    : '';
+
   const label = isCurriculum
-    ? `${markerLabel} ${citation.title}${
-        citation.page === null ? '' : ` · Page ${citation.page}`
-      }`
+    ? `${markerLabel} ${citation.title}${pageLabel ? ` · ${pageLabel}` : ''}`
     : `${markerLabel} ${citation.title}`;
 
   const isSpreadsheetOrSyllabus = Boolean(
@@ -80,6 +107,15 @@ export function CitationChip({ citation }: { citation: ChatCitation }) {
         citation.title.toLowerCase().endsWith('.xls') ||
         citation.title.toLowerCase().endsWith('.csv') ||
         citation.title.toLowerCase().includes('syllabus'))
+  );
+
+  const isDocxOrPptx = Boolean(
+    isCurriculum &&
+      citation.title &&
+      (citation.title.toLowerCase().endsWith('.docx') ||
+        citation.title.toLowerCase().endsWith('.doc') ||
+        citation.title.toLowerCase().endsWith('.pptx') ||
+        citation.title.toLowerCase().endsWith('.ppt'))
   );
 
   const syllabusPath = React.useMemo(() => {
@@ -97,25 +133,27 @@ export function CitationChip({ citation }: { citation: ChatCitation }) {
     event.preventDefault();
     event.stopPropagation();
     if (!isCurriculum && url) {
-      let targetUrl = url;
-      if (!url.includes('#:~:text=') && !url.includes('google.com/goto')) {
-        targetUrl = buildUniversalJumpUrl(url, citation.snippet) || url;
-      }
-      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      const cleanUrl = url.split('#:~:text=')[0];
+      window.open(cleanUrl, '_blank', 'noopener,noreferrer');
     } else if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
     } else if (isSpreadsheetOrSyllabus && syllabusPath) {
-      router.push(syllabusPath);
+      window.open(syllabusPath, '_blank', 'noopener,noreferrer');
     } else {
       void openClassSource(citation);
     }
   };
 
+  const hasHighlights = citation.highlights && citation.highlights.length > 0;
   const actionTooltip = url
     ? `Visit website: ${url}`
     : isSpreadsheetOrSyllabus && syllabusPath
     ? `View in Syllabus: ${citation.title}`
-    : `Open source file: ${citation.title}${citation.page ? ` (Page ${citation.page})` : ''}`;
+    : isDocxOrPptx
+    ? `Download document: ${citation.title} (In-document highlight available for PDF only)`
+    : `Open source file: ${citation.title}${
+        citation.page ? ` (Page ${citation.page}${hasHighlights ? '' : ' - Reference'})` : ''
+      }`;
 
   return (
     <span className="relative inline-block align-baseline">

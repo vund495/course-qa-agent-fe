@@ -262,7 +262,7 @@ export default function AdminSettingsPage() {
                         {retrieval &&
                           (Number(threshold) !== retrieval.threshold ||
                             Number(unrelatedThreshold) !== retrieval.unrelated_threshold) ? (
-                          <span className="px-2.5 py-1 rounded-md text-[12px] font-medium bg-amber-50 text-amber-800 border border-amber-300">
+                          <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-[12px] font-medium text-foreground">
                             Unsaved changes
                           </span>
                         ) : (
@@ -290,13 +290,13 @@ export default function AdminSettingsPage() {
                                 setUnrelatedThreshold(p.low);
                               }}
                               className={`p-2.5 rounded-lg border text-left transition-all ${isActive
-                                  ? "bg-slate-900 border-slate-900 text-white shadow-sm"
-                                  : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                                  ? "bg-[var(--brand)] border-[var(--brand)] text-white shadow-sm"
+                                  : "bg-white border-border hover:bg-muted text-foreground"
                                 }`}
                             >
                               <div className="flex items-center justify-between text-[12.5px] font-bold">
                                 <span>{p.label}</span>
-                                <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${isActive ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-600"}`}>
+                                <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${isActive ? "bg-[var(--brand-hover)] text-white/80" : "bg-muted text-muted-foreground"}`}>
                                   {p.low} – {p.high}
                                 </span>
                               </div>

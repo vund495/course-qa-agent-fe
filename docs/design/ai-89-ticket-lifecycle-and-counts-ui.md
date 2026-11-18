@@ -25,13 +25,13 @@ No admin ticket UI is added; admins receive `403` from ticket APIs.
 
 | Surface | Route | Role |
 |---|---|---|
-| Student My Tickets | `/student/class/[id]/tickets` | Student |
+| Student My Tickets | `/student/tickets` | Student |
 | Student legacy proposals | `/student/class/[id]/proposals` | Redirects to `/tickets` |
-| Trainer Class Tickets | `/teacher/class/[id]/tickets` | Trainer |
+| Trainer Tickets | `/teacher/tickets` | Trainer |
 | Student chat | `/student/class/[id]/agent` | Student; text selection can open the ticket dialog |
 | Trainer chat | `/teacher/class/[id]/agent` | Trainer; **no** ticket selection action |
 
-Student class navigation shows a **My Tickets** tab (`id: tickets`) instead of the old proposals entry.
+Tickets are reached from the sidebar (one top-level Tickets entry per role) instead of a per-class tab; the inbox keeps a class filter inside the page.
 
 ---
 
@@ -125,7 +125,7 @@ Selecting a row opens the detail pane. The first visible ticket is selected auto
 ### Header
 
 - Title: **Class Tickets**
-- Subtitle: “Student questions for your assigned classes. Newest first.”
+- Subtitle: “Student questions sent to you. Newest first.”
 - Badge: total tickets in the current filter.
 - Class picker: **All assigned classes** + every active assigned class.
   - Each option shows `X open · Y completed`.
@@ -133,6 +133,11 @@ Selecting a row opens the detail pane. The first visible ticket is selected auto
   - The picker uses `AppSelect` with the admin popup style.
   - Archived classes are excluded; a stale URL class falls back to All.
   - If counts fail, the picker falls back to the plain class list without counts and shows a non-blocking error.
+- Ownership: the inbox, the counts, and every detail action are scoped to `owner_trainer_id`.
+  - Only the trainer a ticket was sent to sees it. Co-trainers of the same class see nothing until a ticket is handed over to them.
+  - Tickets created before the owner column existed fall back to the class primary trainer.
+  - Handover and leave transfers update visibility immediately; changing a class's primary trainer does not move existing tickets.
+  - Escalation (`escalated_to_id`) only shows a badge; it never grants visibility.
 
 ### List
 
@@ -220,7 +225,7 @@ Newest first. Selecting a row opens the detail pane.
 - Initial load and explicit **Retry** show the skeleton.
 - Loading state: centred spinner + “Loading …”.
 - Error state: inline error + **Retry**; rows are cleared.
-- Empty state: “No tickets yet” vs “No tickets match this filter.”
+- Empty state: “No tickets have been sent to you yet.” with the ownership hint when the unfiltered inbox is empty; otherwise “No tickets match this filter.”
 - Search is client-side within the current page; placeholder “Search this page”.
 - Student list polls every 20 seconds to pick up trainer replies; trainer refreshes on actions and filter changes.
 
@@ -232,6 +237,7 @@ Newest first. Selecting a row opens the detail pane.
 |---|---|
 | Archived class in URL | Picker falls back to All; no request is sent for the archived class. |
 | Archived class returned by list | Backend excludes it; UI never renders an archived option. |
+| Ticket owned by another trainer | Not listed, not counted, and `403` on direct read/reply/resolve/reopen; it appears after a handover to the current trainer. |
 | Counts request fails | Picker still works from the class list; counts error is non-blocking. |
 | Ticket changes status elsewhere | Next poll/refresh updates the badge and available actions. |
 | `409` on action | Inline error; keep the ticket visible; next refresh reconciles status. |
@@ -289,6 +295,7 @@ Client functions live in `features/tickets/api.ts`. Authorization remains server
 - [ ] Student sees **My Tickets**; `/proposals` redirects.
 - [ ] Student picker lists only active enrolled classes.
 - [ ] Trainer picker lists only active assigned classes with correct counts.
+- [ ] Trainer inbox, counts, and detail actions only cover tickets sent to the current trainer; a co-trainer sees an empty inbox with the ownership hint.
 - [ ] Switching `Open ↔ Answered ↔ Resolved ↔ Expired ↔ All` does not flash a skeleton.
 - [ ] Status action buttons appear only for valid statuses.
 - [ ] Confirm resolved/reopen refresh the list and keep the ticket visible when filtered.

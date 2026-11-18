@@ -7,10 +7,13 @@ import { adminApi, type ClassSection, type AdminUser, type ClassTrainer } from "
 import { ActionMenu } from "@/components/shared/ActionMenu";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Modal } from "@/components/shared/Modal";
-import { AdminPageShell, ADMIN_CARD } from "@/components/shared/AdminPageShell";
+import { AdminPageShell, ADMIN_CARD, AdminTableSkeleton } from "@/components/shared/AdminPageShell";
+import { paginate } from "@/lib/pagination";
+import { Pagination } from "@/components/ui/pagination";
 import { PrerequisiteHint } from "@/components/shared/PrerequisiteHint";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { semesterDateRange } from "@/lib/semester";
+import { ClassAssistantManager } from "@/features/handover/class-assistant-manager";
 import { AdminAttendanceModal } from "@/features/attendance/admin-attendance-modal";
 
 const SEMESTER_OPTIONS: AppSelectOption[] = ["Fall", "Spring", "Summer"].map((semester) => ({
@@ -101,6 +104,7 @@ function CoTeacherLine({ trainers }: { trainers: ClassTrainer[] }) {
 
 export default function AdminClassesPage() {
   const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
   const [classes, setClasses] = React.useState<ClassSection[]>([]);
   const [trainers, setTrainers] = React.useState<AdminUser[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -326,6 +330,7 @@ export default function AdminClassesPage() {
     cls.code.toLowerCase().includes(search.toLowerCase()) ||
     (cls.trainer_name ?? "").toLowerCase().includes(search.toLowerCase()),
   );
+  const classPage = paginate(filteredClasses, page);
 
   const trainerOptions: AppSelectOption[] = [
     {
@@ -403,14 +408,14 @@ export default function AdminClassesPage() {
             type="text"
             placeholder="Search classes, trainer"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-white border border-[#DADADA] rounded-lg pl-9 pr-4 py-2 text-[13.5px] outline-none focus:border-[#111111] shadow-sm transition-shadow"
           />
         </div>
       </div>
 
       {loading ? (
-        <div className={`${ADMIN_CARD} p-8 text-center text-[#5A5A5A] text-[13px]`}>Loading classes...</div>
+        <AdminTableSkeleton rows={8} columns={7} />
       ) : (
         <div className={ADMIN_CARD}>
           <table className="w-full text-left border-collapse">
@@ -431,7 +436,7 @@ export default function AdminClassesPage() {
                   <td colSpan={7} className="px-5 py-8 text-center text-[#5A5A5A] text-[13px]">No classes found</td>
                 </tr>
               ) : (
-                filteredClasses.map((cls, idx) => (
+                classPage.items.map((cls, idx) => (
                   <tr key={cls.id} className={`transition-colors hover:bg-[#FAFAFA] ${isArchived(cls) ? "opacity-60" : ""}`}>
                     <td className="px-5 py-3.5">
                       <span className="inline-flex items-center gap-1">
@@ -470,9 +475,9 @@ export default function AdminClassesPage() {
                     <td className="px-5 py-3.5 text-center relative">
                       <ActionMenu
                         label={`Actions for class ${cls.code}`}
-                        direction={idx === filteredClasses.length - 1 ? "up" : "down"}
+                        direction={idx === classPage.items.length - 1 ? "up" : "down"}
                         items={[
-                          { label: "Manage trainers", icon: <Users className="w-3.5 h-3.5" />, onSelect: () => { setManageClass(cls); setNewCoTrainer(""); setManagePrereqs((cls.prerequisites ?? []).map((p) => p.id)); } },
+                          { label: "Manage trainers & assistants", icon: <Users className="w-3.5 h-3.5" />, onSelect: () => { setManageClass(cls); setNewCoTrainer(""); setManagePrereqs((cls.prerequisites ?? []).map((p) => p.id)); } },
                           { label: "Attendance summary", icon: <CalendarCheck className="w-3.5 h-3.5" />, onSelect: () => setAttendanceClass(cls) },
                           isArchived(cls)
                             ? { label: "Restore class", onSelect: () => setPendingArchive(cls) }
@@ -489,6 +494,13 @@ export default function AdminClassesPage() {
               )}
             </tbody>
           </table>
+          <Pagination
+            page={classPage.page}
+            pageCount={classPage.pageCount}
+            total={filteredClasses.length}
+            onChange={setPage}
+            itemLabel="classes"
+          />
         </div>
       )}
 
@@ -625,8 +637,8 @@ export default function AdminClassesPage() {
       <Modal
         isOpen={manageClass !== null && pendingManageAction === null}
         onClose={() => setManageClass(null)}
-        title={`Trainers — ${manageClass?.code ?? ""}`}
-        subtitle="The primary trainer owns the class; co-trainers share access."
+        title={`Class staff — ${manageClass?.code ?? ""}`}
+        subtitle="Manage trainers and assigned teaching assistants for this class."
         widthClass="max-w-lg"
       >
         {manageClass && (
@@ -683,6 +695,7 @@ export default function AdminClassesPage() {
               </div>
             </div>
 
+            <ClassAssistantManager classId={String(manageClass.id)} />
             <div>
               <span className="block text-[13px] font-medium text-[#111111] mb-1.5">Prerequisites</span>
               <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-[#DADADA] p-2">

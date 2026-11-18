@@ -13,6 +13,16 @@ import {
 import { Skill, skillApi } from "@/lib/skill-api";
 import { fetchDocuments, DocumentItem } from "@/lib/documents";
 import { AUTH_TOKEN_KEY } from "@/components/ui/nav-config";
+import { ClassPageHeader } from "@/components/shared/ClassPageHeader";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Database,
   Sparkles,
@@ -39,7 +49,7 @@ const DIFFICULTY_CONFIG: Record<
   NOVICE: { label: "Novice", badgeBg: "bg-slate-100", badgeText: "text-slate-700 border-slate-300" },
   BEGINNER: { label: "Beginner", badgeBg: "bg-blue-50", badgeText: "text-blue-700 border-blue-200" },
   COMPETENT: { label: "Competent", badgeBg: "bg-emerald-50", badgeText: "text-emerald-700 border-emerald-200" },
-  PROFICIENT: { label: "Proficient", badgeBg: "bg-amber-50", badgeText: "text-amber-700 border-amber-200" },
+  PROFICIENT: { label: "Proficient", badgeBg: "bg-muted", badgeText: "text-foreground border-border" },
   MASTER: { label: "Master", badgeBg: "bg-purple-50", badgeText: "text-purple-700 border-purple-200" },
   REMEMBER: { label: "Remember", badgeBg: "bg-slate-100", badgeText: "text-slate-700 border-slate-300" },
   UNDERSTAND: { label: "Understand", badgeBg: "bg-blue-50", badgeText: "text-blue-700 border-blue-200" },
@@ -50,7 +60,7 @@ const DIFFICULTY_CONFIG: Record<
 const TYPE_CONFIG: Record<string, { label: string; badgeBg: string; badgeText: string }> = {
   SINGLE_CHOICE: { label: "Single Choice", badgeBg: "bg-blue-50", badgeText: "text-blue-700 border-blue-200" },
   MULTIPLE_CHOICE: { label: "Multiple Choice", badgeBg: "bg-purple-50", badgeText: "text-purple-700 border-purple-200" },
-  FILL_IN_BLANK: { label: "Fill-in-Blank", badgeBg: "bg-amber-50", badgeText: "text-amber-700 border-amber-200" },
+  FILL_IN_BLANK: { label: "Fill-in-Blank", badgeBg: "bg-muted", badgeText: "text-foreground border-border" },
 };
 
 export default function QuestionBankPage() {
@@ -92,6 +102,7 @@ export default function QuestionBankPage() {
   const [isAiGenOpen, setIsAiGenOpen] = React.useState(false);
   const [isMisconceptionOpen, setIsMisconceptionOpen] = React.useState(false);
   const [isQuestionModalOpen, setIsQuestionModalOpen] = React.useState(false);
+  const [questionToDelete, setQuestionToDelete] = React.useState<BankQuestion | null>(null);
 
   // Generation Form States
   const [aiGenDocIds, setAiGenDocIds] = React.useState<string[]>([]);
@@ -377,9 +388,7 @@ export default function QuestionBankPage() {
   };
 
   const handleDeleteQuestion = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this question from the Question Bank?")) {
-      return;
-    }
+    setQuestionToDelete(null);
     try {
       await questionBankApi.delete(classId, id);
       setSuccessNotice("Question deleted.");
@@ -390,49 +399,43 @@ export default function QuestionBankPage() {
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Banner / Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
-              <Database className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">Question Bank Repository</h1>
-              <p className="text-sm text-slate-500">
-                Centralized assessment repository aligned with Dreyfus Skill Taxonomy. Stage 1 of the quiz generation workflow.
-              </p>
-            </div>
+    <div className="flex flex-1 flex-col">
+      <ClassPageHeader
+        title="Question Bank"
+        subtitle="Assessment repository aligned with the Dreyfus skill taxonomy — the first stage of quiz generation."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAiGenOpen(true)}
+              className="h-9 gap-1.5 border-white bg-white px-3.5 text-[var(--brand-ink)] hover:bg-[#E5EFF8] hover:text-[var(--brand-ink)]"
+            >
+              <Sparkles className="h-4 w-4" />
+              Generate with AI
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsMisconceptionOpen(true)}
+              className="h-9 gap-1.5 border-white/25 bg-transparent px-3.5 text-white hover:bg-white/10 hover:text-white"
+              title="Generate questions from student chat questions and confusion tickets"
+            >
+              <Brain className="h-4 w-4" />
+              From Student Doubts & Pitfalls
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={openAddQuestionModal}
+              className="h-9 gap-1.5 border-white/25 bg-transparent px-3.5 text-white hover:bg-white/10 hover:text-white"
+            >
+              <Plus className="h-4 w-4" />
+              Add Question
+            </Button>
           </div>
-        </div>
-
-        {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setIsAiGenOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition"
-          >
-            <Sparkles className="w-4 h-4" />
-            Generate with AI
-          </button>
-          <button
-            onClick={() => setIsMisconceptionOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 shadow-sm transition"
-            title="Generate questions from student chat questions and confusion tickets"
-          >
-            <Brain className="w-4 h-4" />
-            From Student Doubts & Pitfalls
-          </button>
-          <button
-            onClick={openAddQuestionModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Add Question
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Notice & Alerts */}
       {successNotice && (
@@ -460,6 +463,7 @@ export default function QuestionBankPage() {
       )}
 
       {/* Statistics Row */}
+      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm">
           <div className="text-xs font-medium text-slate-500">Total Questions</div>
@@ -478,7 +482,7 @@ export default function QuestionBankPage() {
           </div>
         </div>
         <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm">
-          <div className="text-xs font-medium text-amber-600">Fill in Blank</div>
+          <div className="text-xs font-medium text-muted-foreground">Fill in Blank</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">
             {stats.type["FILL_IN_BLANK"] || 0}
           </div>
@@ -664,7 +668,7 @@ export default function QuestionBankPage() {
                     </button>
 
                     <button
-                      onClick={() => handleDeleteQuestion(q.id)}
+                      onClick={() => setQuestionToDelete(q)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 transition"
                       title="Delete question"
                     >
@@ -712,9 +716,9 @@ export default function QuestionBankPage() {
 
                 {/* Fill in Blank accepted answers */}
                 {q.question_type === "FILL_IN_BLANK" && (
-                  <div className="mt-3.5 p-3 rounded-lg bg-amber-50/60 border border-amber-200 text-sm">
-                    <span className="font-semibold text-amber-900">Accepted Answers: </span>
-                    <span className="text-amber-950">
+                  <div className="mt-3.5 rounded-lg border border-border bg-muted/40 p-3 text-sm">
+                    <span className="font-semibold text-foreground">Accepted Answers: </span>
+                    <span className="text-muted-foreground">
                       {q.correct_answers && q.correct_answers.length > 0
                         ? q.correct_answers.join(" | ")
                         : q.rubric || "(Defined in rubric)"}
@@ -769,6 +773,7 @@ export default function QuestionBankPage() {
           })}
         </div>
       )}
+      </div>
 
       {/* MODAL 1: AI Question Generator Modal */}
       {isAiGenOpen && (
@@ -1293,6 +1298,35 @@ export default function QuestionBankPage() {
         </div>
       )}
 
+      <Dialog
+        open={Boolean(questionToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setQuestionToDelete(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete question</DialogTitle>
+            <DialogDescription>
+              Remove this question from the Question Bank? Quizzes already generated from it keep
+              their copy, but it can no longer be reused.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" onClick={() => setQuestionToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => questionToDelete && void handleDeleteQuestion(questionToDelete.id)}
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -47,11 +47,9 @@ export default function ClassWorkspaceLayout({
     { id: "overview", label: "Overview", href: `/teacher/class/${id}/overview` },
     { id: "syllabus", label: "Syllabus", href: `/teacher/class/${id}/syllabus` },
     { id: "agent", label: "Q&A Chat", href: `/teacher/class/${id}/agent` },
-    { id: "tickets", label: "Tickets", href: `/teacher/class/${id}/tickets` },
     { id: "skills", label: "Skills & Rubrics", href: `/teacher/class/${id}/skills` },
     { id: "question-bank", label: "Question Bank", href: `/teacher/class/${id}/question-bank` },
     { id: "quizzes", label: "Quizzes", href: `/teacher/class/${id}/quizzes` },
-    { id: "attendance", label: "Attendance", href: `/teacher/class/${id}/attendance` },
     {
       id: "members",
       label: "Members",
@@ -70,11 +68,11 @@ export default function ClassWorkspaceLayout({
 
       {isAgentPage ? (
         <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
-          <PageContainer className="h-full pt-3 pb-3">{children}</PageContainer>
+          <PageContainer className="h-full pt-0 pb-0">{children}</PageContainer>
         </div>
       ) : (
         <div ref={scrollRef} className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <PageContainer className="pt-3">{children}</PageContainer>
+          <PageContainer className="flex min-h-full flex-col pt-8 pb-0">{children}</PageContainer>
         </div>
       )}
     </div>
