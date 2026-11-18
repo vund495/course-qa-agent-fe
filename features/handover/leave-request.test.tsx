@@ -7,7 +7,7 @@ import { validateLeaveRange } from "@/lib/handover-api";
 
 describe("leave request UI", () => {
   it("keeps planned leave controls out of the ticket inbox", () => {
-    const html = renderToStaticMarkup(<TicketInbox initialClassId="class-1" />);
+    const html = renderToStaticMarkup(<TicketInbox />);
     expect(html).not.toContain("Request leave");
     expect(html).not.toContain("Leave requests");
   });

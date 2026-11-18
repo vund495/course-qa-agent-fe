@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/admin-api";
+import { apiFetch, adminApi } from "@/lib/admin-api";
 import type { ChatMessageCitation } from "@/features/history/types";
 
 export type Ticket = {
@@ -30,9 +30,29 @@ export type TicketReply = {
   id: string;
   ticket_id: string;
   user_id: string;
+  /** Display name of the reply author (trainer, TA or administrator). */
+  author_name?: string | null;
   message: string;
   created_at: string;
+  attachments?: TicketAttachment[];
 };
+
+export type TicketAttachment = {
+  id: string;
+  ticket_id: string;
+  reply_id?: string | null;
+  kind: "IMAGE" | "EMOJI";
+  file_name?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  emoji?: string | null;
+  created_at: string;
+};
+
+// Mirrors the backend limits so the picker fails fast without a round trip.
+export const TICKET_ATTACHMENT_LIMIT = 3;
+export const TICKET_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const TICKET_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 export type TicketThread = Ticket & { replies: TicketReply[] };
 
@@ -51,7 +71,7 @@ export type TicketList = {
   page_size: number;
 };
 
-export type TicketClassCounts = {
+type TicketClassCounts = {
   class_id: string;
   class_code: string;
   class_name: string;
@@ -122,15 +142,73 @@ export function createAnswerTicket(messageId: string, details: string): Promise<
   });
 }
 
-export function addTicketReply(ticketId: string, message: string): Promise<TicketReply> {
+export function addTicketReply(
+  ticketId: string,
+  message: string,
+  attachmentIds: string[] = [],
+): Promise<TicketReply> {
   return apiFetch<TicketReply>(`/api/tickets/${ticketId}/replies`, {
     method: "POST",
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, attachment_ids: attachmentIds }),
   });
 }
 
-export function getStudentTicket(ticketId: string): Promise<TicketThread> {
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+function ticketMediaHeaders(): HeadersInit {
+  const token = adminApi.authToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** Upload images and/or emojis the next reply will carry. */
+export async function uploadTicketAttachments(
+  ticketId: string,
+  input: { files?: File[]; emojis?: string[] },
+): Promise<TicketAttachment[]> {
+  const form = new FormData();
+  (input.files ?? []).forEach((file) => form.append("files", file));
+  (input.emojis ?? []).forEach((emoji) => form.append("emojis", emoji));
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
+      method: "POST",
+      headers: ticketMediaHeaders(),
+      body: form,
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach backend at ${API_URL} — check "docker compose up -d --build" and the backend logs, then Retry.`,
+    );
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { detail?: string }).detail ?? `Upload failed (${res.status})`);
+  }
+  return (await res.json()) as TicketAttachment[];
+}
+
+/** Remove an attachment that has not been sent with a reply yet. */
+export async function deleteTicketAttachment(attachmentId: string): Promise<void> {
+  await apiFetch<void>(`/api/tickets/attachments/${attachmentId}`, { method: "DELETE" });
+}
+
+/** Authenticated media fetch: <img src> cannot carry the bearer token. */
+export async function fetchTicketAttachmentBlob(attachmentId: string): Promise<Blob> {
+  const res = await fetch(`${API_URL}/api/tickets/attachments/${attachmentId}`, {
+    headers: ticketMediaHeaders(),
+  });
+  if (!res.ok) throw new Error(`Could not load the attachment (${res.status}).`);
+  return res.blob();
+}
+
+/** Read one ticket thread; the caller must be a participant in the ticket. */
+export function getTicket(ticketId: string): Promise<TicketThread> {
   return apiFetch<TicketThread>(`/api/tickets/${ticketId}`);
+}
+
+export function getStudentTicket(ticketId: string): Promise<TicketThread> {
+  return getTicket(ticketId);
 }
 
 export function resolveTicket(ticketId: string): Promise<Ticket> {

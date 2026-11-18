@@ -47,7 +47,6 @@ export default function ClassWorkspaceLayout({
     { id: "overview", label: "Overview", href: `/teacher/class/${id}/overview` },
     { id: "syllabus", label: "Syllabus", href: `/teacher/class/${id}/syllabus` },
     { id: "agent", label: "Q&A Chat", href: `/teacher/class/${id}/agent` },
-    { id: "tickets", label: "Tickets", href: `/teacher/class/${id}/tickets` },
     { id: "skills", label: "Skills & Rubrics", href: `/teacher/class/${id}/skills` },
     { id: "question-bank", label: "Question Bank", href: `/teacher/class/${id}/question-bank` },
     { id: "quizzes", label: "Quizzes", href: `/teacher/class/${id}/quizzes` },

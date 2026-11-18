@@ -2,11 +2,11 @@
 
 ## Location and scope
 
-Render the live ticket inbox in the existing teacher class tickets route. Keep the selected class from the route as the initial class filter. This page lists and reads tickets; answering and resolving them belong to separate tasks.
+Render the live ticket inbox on the top-level Tickets page reached from the sidebar (`/teacher/tickets`). The inbox opens on all of the trainer's classes and the class filter inside the page narrows it; there is no class scope in the URL. This page lists and reads tickets; answering and resolving them belong to separate tasks (see AI-203 for the thread UI).
 
 ## Layout and behavior
 
-- Header identifies the class inbox and its purpose.
+- Header identifies the trainer inbox and its purpose.
 - Filter controls allow `All`, `Open`, `Answered`, and `Resolved`, plus the current class selection where available.
 - List rows show ticket ID, question, student, class, status, and creation time. Newest tickets appear first, matching server order.
 - Selecting a row shows the question and optional assistant-answer excerpt. The inbox is owner-scoped: only the trainer a ticket was sent to can list, read, or answer it. Co-trainers of the same class see nothing until a ticket is handed over to them; tickets created before the owner column existed stay with the class primary trainer.
@@ -19,7 +19,7 @@ Support loading, empty inbox, no filter matches, API error with retry, and popul
 
 ## Data contract
 
-Call `GET /api/tickets` with `class_id`, optional status, page, and page size. Trust the returned `items`, `total`, `page`, and `page_size` for pagination. The server enforces role and ticket ownership; the UI is not an authorization boundary. Class access is still required, so a ticket from another trainer's class is rejected with `403`, and so is a ticket owned by another trainer of the same class.
+Call `GET /api/tickets` with optional `class_id`, optional status, page, and page size; omitting `class_id` returns every class the trainer is assigned to. Trust the returned `items`, `total`, `page`, and `page_size` for pagination. The server enforces role and ticket ownership; the UI is not an authorization boundary. Class access is still required, so a ticket from another trainer's class is rejected with `403`, and so is a ticket owned by another trainer of the same class.
 
 ## Verification
 

@@ -1,11 +1,10 @@
-import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TicketInbox, ticketInboxEmptyCopy } from "@/features/tickets/ticket-inbox";
 
 describe("owner-scoped trainer ticket inbox", () => {
   it("tells the trainer the inbox only holds tickets sent to them", () => {
-    const html = renderToStaticMarkup(<TicketInbox initialClassId="class-1" />);
+    const html = renderToStaticMarkup(<TicketInbox />);
 
     expect(html).toContain("Student questions sent to you.");
     expect(html).not.toContain("Student questions for your assigned classes.");

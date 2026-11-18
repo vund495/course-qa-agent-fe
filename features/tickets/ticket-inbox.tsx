@@ -7,18 +7,20 @@ import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
 import { studentApi, type StudentClass } from "@/lib/student-api";
 import { cn } from "@/lib/utils";
-import { formatHandoverTime, handoverReasonLabel, isSystemReply } from "@/lib/handover-api";
+import { formatHandoverTime, handoverReasonLabel } from "@/lib/handover-api";
 import { profileApi } from "@/features/profile/api";
 import { HandoverInbox } from "@/features/handover/handover-inbox";
 import { TicketOwnerBadge } from "./ticket-owner-badge";
 import {
   addTicketReply,
+  getTicket,
   getTicketCounts,
   listTickets,
   reopenTicket,
   resolveTicket,
   type Ticket,
   type TicketCounts,
+  type TicketInboxItem,
   type TicketList,
 } from "./api";
 import {
@@ -27,6 +29,9 @@ import {
   getTicketStatusTheme,
   TicketStatusBadge,
 } from "./ticket-status-badge";
+import { type PendingTicketAttachment } from "./ticket-attachment-composer";
+import { TicketReplyPanel } from "./ticket-reply-panel";
+import { TicketThread, type TicketThreadEntry } from "./ticket-thread";
 
 const FILTERS = [
   { id: "OPEN", label: "Open" },
@@ -85,11 +90,18 @@ export function ticketInboxEmptyCopy({
   return { title: "No tickets match this filter." };
 }
 
-export function TicketInbox({ initialClassId }: { initialClassId: string }) {
+export function TicketInbox() {
   const [classes, setClasses] = React.useState<StudentClass[]>([]);
-  const [classId, setClassId] = React.useState(initialClassId);
+  const [classId, setClassId] = React.useState("");
   const [classesLoaded, setClassesLoaded] = React.useState(false);
-  const [filter, setFilter] = React.useState<Ticket["status"] | "all">("OPEN");
+  // A bell notification links to ?ticket_id=…, which may point at an answered or
+  // resolved ticket; default to "All" so that ticket is actually in the list.
+  const [filter, setFilter] = React.useState<Ticket["status"] | "all">(() =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("ticket_id")
+      ? "all"
+      : "OPEN",
+  );
   const [page, setPage] = React.useState(1);
   const [data, setData] = React.useState<TicketList | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -98,6 +110,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
   const [retry, setRetry] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [reply, setReply] = React.useState("");
+  const [pendingAttachments, setPendingAttachments] = React.useState<PendingTicketAttachment[]>([]);
   const [replyBusy, setReplyBusy] = React.useState(false);
   const [replyError, setReplyError] = React.useState<string | null>(null);
   const [counts, setCounts] = React.useState<TicketCounts | null>(null);
@@ -109,7 +122,22 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
       ? null
       : new URLSearchParams(window.location.search).get("ticket_id"),
   );
+  // A linked ticket is kept around when it is not on the current list page
+  // (bell link to an older ticket), so the detail pane still shows it.
+  const [linkedTicket, setLinkedTicket] = React.useState<TicketInboxItem | null>(null);
+  // Who closed the ticket during this session; unknown after a reload, and an
+  // invented name would be worse than none.
+  const [resolvedBy, setResolvedBy] = React.useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+
+  function clearPendingAttachments() {
+    setPendingAttachments((current) => {
+      current.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
+  }
 
   React.useEffect(() => {
     let cancelled = false;
@@ -206,12 +234,28 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
     };
   }, [retry]);
 
+  // The trainer inbox has no other refresh path (the manual Refresh button is
+  // gone), so poll lightly and refresh when the tab regains focus.
+  React.useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") setRetry((value) => value + 1);
+    };
+    const timer = window.setInterval(refresh, 25_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
   function startRequest({ soft = false }: { soft?: boolean } = {}) {
     // Filter/search refreshes keep the previous rows on screen so switching
     // tabs does not flash a skeleton. Only error retries reload from scratch.
     if (!soft) setLoading(true);
     setError(null);
     setSelectedId(null);
+    setLinkedTicket(null);
+    setResolvedBy(null);
     setSearch("");
     setStatusError(null);
   }
@@ -255,7 +299,35 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
             value.toLowerCase().includes(query),
           ),
       );
-  const selected = visible.find((ticket) => ticket.id === selectedId) ?? visible[0];
+  // A bell link can point at a ticket that is not on this page/filter; fetch it
+  // directly instead of silently falling back to the first row.
+  React.useEffect(() => {
+    if (!selectedId || !data || data.items.some((ticket) => ticket.id === selectedId)) return;
+    let cancelled = false;
+    void getTicket(selectedId)
+      .then((ticket) => {
+        if (cancelled) return;
+        const clazz = classes.find((item) => item.id === ticket.class_id);
+        setLinkedTicket({
+          ...ticket,
+          student_name: "",
+          class_name: clazz?.name ?? "",
+          class_code: clazz?.code ?? "",
+          class_status: clazz?.status ?? "ACTIVE",
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedTicket(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, data, classes]);
+
+  const selected = selectedId
+    ? (visible.find((ticket) => ticket.id === selectedId) ??
+      (linkedTicket?.id === selectedId ? linkedTicket : undefined))
+    : visible[0];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / (data?.page_size ?? 20)));
   const classSelectOptions: AppSelectOption[] = React.useMemo(
     () => [
@@ -280,15 +352,29 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
     ? classId
     : "";
 
+  const studentName = selected?.student_name?.trim() || "Student";
+  const staffName =
+    selected?.owner_trainer_name?.trim() ||
+    selected?.escalated_to_name?.trim() ||
+    "Support teacher";
+
   async function changeStatus(action: "resolve" | "reopen") {
     if (!selected) return;
     setStatusBusy(true);
     setStatusError(null);
     try {
-      if (action === "resolve") await resolveTicket(selected.id);
-      else await reopenTicket(selected.id);
+      if (action === "resolve") {
+        await resolveTicket(selected.id);
+        setResolvedBy(staffName);
+      } else {
+        await reopenTicket(selected.id);
+        setResolvedBy(null);
+      }
       // Keep the ticket in view after its status changes.
-      if (filter !== "all") setFilter(action === "resolve" ? "RESOLVED" : "ANSWERED");
+      if (filter !== "all") {
+        setFilter(action === "resolve" ? "RESOLVED" : "ANSWERED");
+        setPage(1);
+      }
       setRetry((value) => value + 1);
     } catch (cause) {
       setStatusError(cause instanceof Error ? cause.message : "Could not update the ticket.");
@@ -296,6 +382,30 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
       setStatusBusy(false);
     }
   }
+
+  const threadEntries: TicketThreadEntry[] = selected
+    ? [
+        {
+          id: `ticket-${selected.id}`,
+          authorName: studentName,
+          createdAt: selected.created_at,
+          message: selected.question,
+          tone: "requester",
+        },
+        ...selected.replies.map((item) => {
+          const fromStudent = item.user_id === selected.student_id;
+          return {
+            id: item.id,
+            authorName:
+              item.author_name?.trim() || (fromStudent ? studentName : staffName),
+            createdAt: item.created_at,
+            message: item.message,
+            attachments: item.attachments,
+            tone: fromStudent ? ("requester" as const) : ("staff" as const),
+          };
+        }),
+      ]
+    : [];
 
   const leftContent = (
     <>
@@ -335,7 +445,10 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
             aria-pressed={selected?.id === ticket.id}
             onClick={() => {
               setSelectedId(ticket.id);
+              setLinkedTicket(null);
+              setResolvedBy(null);
               setReply("");
+              clearPendingAttachments();
               setReplyError(null);
               setStatusError(null);
             }}
@@ -493,22 +606,16 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                     {selected.class_code} · {selected.class_name}
                   </span>
                   {selected.class_status === "ARCHIVED" && <ArchivedClassBadge />}
-                  <span className="text-xs text-[#6F6F6F]">by {selected.student_name}</span>
+                  {selected.student_name && (
+                    <span className="text-xs text-[#6F6F6F]">by {selected.student_name}</span>
+                  )}
                   <time dateTime={selected.created_at} className="text-xs text-[#6F6F6F]">
                     {formatTicketDate(selected.created_at)}
                   </time>
+                  <span className="ml-auto break-all font-mono text-[10px] text-[#6F6F6F]">
+                    Ticket {selected.id}
+                  </span>
                 </div>
-                <h2
-                  className={cn(
-                    "mt-2 text-lg font-semibold leading-snug",
-                    getTicketStatusTheme(selected.status).titleClassName,
-                  )}
-                >
-                  {selected.question}
-                </h2>
-                <p className="mt-1 break-all font-mono text-[10px] text-[#6F6F6F]">
-                  Ticket {selected.id}
-                </p>
                 <div className="mt-2 space-y-1 text-xs text-[#5A5A5A]">
                   {selected.owner_trainer_name && (
                     <p>
@@ -566,78 +673,45 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                   </section>
                 )}
 
-                <section className="space-y-3">
+                <section className="space-y-4">
                   <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#6F6F6F]">
                     Conversation
                   </h3>
-                  {selected.replies.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-[#DADADA] p-3 text-sm text-[#6F6F6F]">
-                      No replies yet. Write the first answer below.
-                    </p>
-                  ) : (
-                    selected.replies.map((item) => {
-                      const fromStudent = item.user_id === selected.student_id;
-                      if (isSystemReply(item.message)) {
-                        return (
-                          <div
-                            key={item.id}
-                            className="mx-auto max-w-[95%] rounded-lg border border-dashed border-[#D6C48A] bg-[#FFF9EA] px-3.5 py-2.5 text-sm"
-                          >
-                            <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#8A6414]">
-                              System update
-                            </p>
-                            <p className="whitespace-pre-wrap break-words text-[#5A4A1F]">
-                              {item.message}
-                            </p>
-                            <time
-                              dateTime={item.created_at}
-                              className="mt-1 block text-[10px] text-[#8A7A55]"
-                            >
-                              {formatTicketDate(item.created_at)}
-                            </time>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "max-w-[85%] rounded-lg border px-3.5 py-2.5 text-sm",
-                            fromStudent
-                              ? "border-[#E5E5E5] bg-[#F7F7F7]"
-                              : "ml-auto border-[#CFE0F7] bg-[#F5F9FF]",
-                          )}
-                        >
-                          <p className="mb-1 text-[11px] font-semibold text-[#5A5A5A]">
-                            {fromStudent ? "Student" : "You (trainer)"}
-                          </p>
-                          <p className="whitespace-pre-wrap break-words text-[#111111]">
-                            {item.message}
-                          </p>
-                          <time
-                            dateTime={item.created_at}
-                            className="mt-1 block text-[10px] text-[#6F6F6F]"
-                          >
-                            {formatTicketDate(item.created_at)}
-                          </time>
-                        </div>
-                      );
-                    })
-                  )}
+                  <TicketThread
+                    entries={threadEntries}
+                    closed={selected.status === "RESOLVED"}
+                    closedBy={resolvedBy}
+                    emptyText="No replies yet. Write the first answer."
+                  />
 
-                  {selected.status === "OPEN" && (
-                    <form
-                      className="space-y-2 rounded-lg border border-[#DADADA] p-3"
+                  {(selected.status === "OPEN" || selected.status === "ANSWERED") && (
+                    <TicketReplyPanel
+                      ticketId={selected.id}
+                      heading="Answer the student"
+                      hint="Add details or attachments. You can keep replying until the student confirms it is resolved."
+                      value={reply}
+                      onChange={setReply}
+                      pendingAttachments={pendingAttachments}
+                      onAttachmentsChange={setPendingAttachments}
+                      busy={replyBusy}
+                      error={replyError}
+                      submitLabel="Send answer"
                       onSubmit={async (event) => {
                         event.preventDefault();
-                        if (!reply.trim()) return;
+                        const message = reply.trim();
+                        const attachmentIds = pendingAttachments.map((item) => item.id);
+                        if (!message && attachmentIds.length === 0) return;
                         setReplyBusy(true);
                         setReplyError(null);
                         try {
-                          await addTicketReply(selected.id, reply.trim());
+                          await addTicketReply(selected.id, message, attachmentIds);
                           setReply("");
+                          clearPendingAttachments();
                           // Keep the answered ticket visible in the inbox.
-                          if (filter === "OPEN") setFilter("ANSWERED");
+                          if (filter === "OPEN") {
+                            setFilter("ANSWERED");
+                            setPage(1);
+                          }
                           setRetry((value) => value + 1);
                         } catch (cause) {
                           setReplyError(
@@ -647,32 +721,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                           setReplyBusy(false);
                         }
                       }}
-                    >
-                      <label
-                        className="block space-y-1 text-sm font-medium text-[#111111]"
-                        htmlFor="ticket-teacher-reply"
-                      >
-                        Reply to student
-                        <textarea
-                          id="ticket-teacher-reply"
-                          rows={4}
-                          maxLength={10000}
-                          value={reply}
-                          onChange={(event) => setReply(event.target.value)}
-                          className="mt-1 w-full resize-y rounded-md border border-[#DADADA] px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        />
-                      </label>
-                      {replyError && (
-                        <p role="alert" className="text-sm text-red-700">
-                          {replyError}
-                        </p>
-                      )}
-                      <div className="flex justify-end">
-                        <Button type="submit" disabled={replyBusy || !reply.trim()}>
-                          {replyBusy ? "Sending…" : "Send answer"}
-                        </Button>
-                      </div>
-                    </form>
+                    />
                   )}
                 </section>
               </div>
@@ -685,7 +734,7 @@ export function TicketInbox({ initialClassId }: { initialClassId: string }) {
                         ? "Waiting for an administrator to pick this up."
                         : "Waiting for your answer.")}
                     {selected.status === "ANSWERED" &&
-                      "Answered. Mark it resolved when the student no longer needs help."}
+                      "Answered. Keep replying if the student needs more, or mark it resolved when they no longer need help."}
                     {selected.status === "RESOLVED" && "This ticket is completed."}
                     {selected.status === "EXPIRED" &&
                       "This ticket expired after seven days without an answer."}

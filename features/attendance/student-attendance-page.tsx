@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, RefreshCw } from "lucide-react";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
+import { PAGE_COLUMN, PageContainer } from "@/components/shared/PageShell";
 import { StudentAttendanceView } from "@/features/attendance/student-attendance-view";
 import { studentApi, type StudentClass } from "@/lib/student-api";
 
@@ -61,12 +62,6 @@ export function StudentAttendancePage() {
 
   const classFilter = (
     <div className="w-full min-w-0 sm:w-72">
-      <label
-        htmlFor="student-attendance-class-filter"
-        className="mb-1 block text-[11px] font-semibold text-[#DEE8F2]"
-      >
-        Class
-      </label>
       <AppSelect
         id="student-attendance-class-filter"
         aria-label="Filter attendance by class"
@@ -87,7 +82,7 @@ export function StudentAttendancePage() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 md:p-6" role="status" aria-label="Loading classes">
+      <div className={PAGE_COLUMN} role="status" aria-label="Loading classes">
         <div className="h-32 animate-pulse rounded-xl border border-[#DADADA] bg-white" />
       </div>
     );
@@ -95,7 +90,7 @@ export function StudentAttendancePage() {
 
   if (error) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+      <PageContainer>
         <div className="rounded-xl border border-red-200 bg-white p-8 text-center">
           <p className="text-sm font-medium text-red-700">{error}</p>
           <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void loadClasses()}>
@@ -103,13 +98,13 @@ export function StudentAttendancePage() {
             Retry
           </Button>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (!selectedClass) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+      <PageContainer>
         <div className="rounded-xl border border-dashed border-[#DADADA] bg-white p-8 text-center">
           <BookOpen className="mx-auto size-8 text-[#8A8A8A]" aria-hidden="true" />
           <h1 className="mt-3 text-lg font-semibold text-[#111111]">No enrolled classes</h1>
@@ -117,7 +112,7 @@ export function StudentAttendancePage() {
             Attendance will appear after you enroll in a class.
           </p>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 

@@ -25,13 +25,13 @@ No admin ticket UI is added; admins receive `403` from ticket APIs.
 
 | Surface | Route | Role |
 |---|---|---|
-| Student My Tickets | `/student/class/[id]/tickets` | Student |
+| Student My Tickets | `/student/tickets` | Student |
 | Student legacy proposals | `/student/class/[id]/proposals` | Redirects to `/tickets` |
-| Trainer Class Tickets | `/teacher/class/[id]/tickets` | Trainer |
+| Trainer Tickets | `/teacher/tickets` | Trainer |
 | Student chat | `/student/class/[id]/agent` | Student; text selection can open the ticket dialog |
 | Trainer chat | `/teacher/class/[id]/agent` | Trainer; **no** ticket selection action |
 
-Student class navigation shows a **My Tickets** tab (`id: tickets`) instead of the old proposals entry.
+Tickets are reached from the sidebar (one top-level Tickets entry per role) instead of a per-class tab; the inbox keeps a class filter inside the page.
 
 ---
 

@@ -3,6 +3,8 @@
 import * as React from "react";
 import { Calendar, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { ClassPageHeader } from "@/components/shared/ClassPageHeader";
+import { PageContainer } from "@/components/shared/PageShell";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { SkeletonLine, SkeletonCard } from "@/components/shared/page-skeleton";
@@ -78,9 +80,7 @@ export function StudentAttendanceView({
   };
 
   return (
-    <div
-      className={`mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6 ${className ?? ""}`}
-    >
+    <PageContainer className={cn("flex flex-col gap-6", className)}>
       <ClassPageHeader
         title="My Attendance"
         subtitle="View your attendance history, sessions, and attendance rate."
@@ -199,6 +199,6 @@ export function StudentAttendanceView({
         {/* Loaded Content */}
         {!loading && !error && data && <StudentAttendanceHistory data={data} />}
       </div>
-    </div>
+    </PageContainer>
   );
 }

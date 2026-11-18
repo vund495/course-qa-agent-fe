@@ -13,6 +13,8 @@ import { ClassLeaveControls } from "@/features/attendance/class-leave-controls";
 import { ClassHolidayCalendar } from "@/features/attendance/class-holiday-calendar";
 import { SessionWarnings } from "@/features/attendance/session-warnings";
 import { ClassPageHeader } from "@/components/shared/ClassPageHeader";
+import { PageContainer } from "@/components/shared/PageShell";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
@@ -173,7 +175,7 @@ export function TeacherAttendanceWorkspace({
   }, [sessions, selectedSessionId]);
 
   return (
-    <div className={`flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6 ${className ?? "mx-auto"}`}>
+    <PageContainer className={cn("flex flex-col gap-6", className)}>
       <ClassPageHeader
         title="Attendance"
         subtitle="Track, take, and review class attendance per session."
@@ -445,6 +447,6 @@ export function TeacherAttendanceWorkspace({
         classId={classId}
         onScheduleChanged={() => void loadSessions()}
       />
-    </div>
+    </PageContainer>
   );
 }

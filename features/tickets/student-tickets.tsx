@@ -7,7 +7,6 @@ import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
 import { studentApi, type StudentClass } from "@/lib/student-api";
 import { cn } from "@/lib/utils";
-import { isSystemReply } from "@/lib/handover-api";
 import {
   addTicketReply,
   getStudentTicket,
@@ -27,6 +26,9 @@ import {
 } from "./ticket-status-badge";
 import { hasUnreadReply, latestUnreadReply } from "./unread-replies";
 import { useTicketNotifications } from "./ticket-notifications";
+import { type PendingTicketAttachment } from "./ticket-attachment-composer";
+import { TicketReplyPanel } from "./ticket-reply-panel";
+import { TicketThread, type TicketThreadEntry } from "./ticket-thread";
 
 const FILTERS = [
   { id: "OPEN", label: "Open" },
@@ -36,9 +38,9 @@ const FILTERS = [
   { id: "all", label: "All" },
 ];
 
-export function StudentTickets({ initialClassId }: { initialClassId: string }) {
+export function StudentTickets() {
   const [classes, setClasses] = React.useState<StudentClass[]>([]);
-  const [classId, setClassId] = React.useState(initialClassId);
+  const [classId, setClassId] = React.useState("");
   const [filter, setFilter] = React.useState<Ticket["status"] | "all">("all");
   const [page, setPage] = React.useState(1);
   const [data, setData] = React.useState<TicketList | null>(null);
@@ -53,10 +55,14 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
   const notifications = useTicketNotifications();
   const markedReply = React.useRef<string | null>(null);
   const [followUp, setFollowUp] = React.useState("");
+  const [pendingAttachments, setPendingAttachments] = React.useState<PendingTicketAttachment[]>([]);
   const [replyBusy, setReplyBusy] = React.useState(false);
   const [replyError, setReplyError] = React.useState<string | null>(null);
   const [actionBusy, setActionBusy] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
+  // Who closed the ticket during this session; unknown after a reload, and an
+  // invented name would be worse than none.
+  const [resolvedBy, setResolvedBy] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -114,6 +120,15 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
     return () => window.clearInterval(timer);
   }, []);
 
+  function clearPendingAttachments() {
+    setPendingAttachments((current) => {
+      current.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
+  }
+
   function startRequest({ soft = false }: { soft?: boolean } = {}) {
     // Keep the current rows on screen while a filter/class/page request is in
     // flight so the list does not flash a skeleton.
@@ -121,7 +136,9 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
     setError(null);
     setSelectedId(null);
     setLinkedTicket(null);
+    setResolvedBy(null);
     setFollowUp("");
+    clearPendingAttachments();
     setReplyError(null);
     setActionError(null);
   }
@@ -173,15 +190,29 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
     ? classId
     : "";
 
+  const studentName = selected?.student_name?.trim() || "You";
+  const teacherName =
+    selected?.owner_trainer_name?.trim() ||
+    selected?.escalated_to_name?.trim() ||
+    "Support teacher";
+
   async function updateStatus(action: "resolve" | "reopen") {
     if (!selected) return;
     setActionBusy(true);
     setActionError(null);
     try {
-      if (action === "resolve") await resolveTicket(selected.id);
-      else await reopenTicket(selected.id);
+      if (action === "resolve") {
+        await resolveTicket(selected.id);
+        setResolvedBy(studentName);
+      } else {
+        await reopenTicket(selected.id);
+        setResolvedBy(null);
+      }
       // Keep the ticket in view after its status changes.
-      if (filter !== "all") setFilter(action === "resolve" ? "RESOLVED" : "ANSWERED");
+      if (filter !== "all") {
+        setFilter(action === "resolve" ? "RESOLVED" : "ANSWERED");
+        setPage(1);
+      }
       setRetry((value) => value + 1);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not update the ticket.");
@@ -192,14 +223,21 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
 
   async function sendFollowUp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected || !followUp.trim()) return;
+    if (!selected) return;
+    const message = followUp.trim();
+    const attachmentIds = pendingAttachments.map((item) => item.id);
+    if (!message && attachmentIds.length === 0) return;
     setReplyBusy(true);
     setReplyError(null);
     try {
-      await addTicketReply(selected.id, followUp.trim());
+      await addTicketReply(selected.id, message, attachmentIds);
       setFollowUp("");
+      clearPendingAttachments();
       // A follow-up puts the ticket back in the teacher queue.
-      if (filter === "ANSWERED") setFilter("OPEN");
+      if (filter === "ANSWERED") {
+        setFilter("OPEN");
+        setPage(1);
+      }
       setRetry((value) => value + 1);
     } catch (cause) {
       setReplyError(cause instanceof Error ? cause.message : "Could not send your message.");
@@ -207,6 +245,30 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
       setReplyBusy(false);
     }
   }
+
+  const threadEntries: TicketThreadEntry[] = selected
+    ? [
+        {
+          id: `ticket-${selected.id}`,
+          authorName: studentName,
+          createdAt: selected.created_at,
+          message: selected.question,
+          tone: "requester",
+        },
+        ...selected.replies.map((item) => {
+          const fromStudent = item.user_id === selected.student_id;
+          return {
+            id: item.id,
+            authorName:
+              item.author_name?.trim() || (fromStudent ? studentName : teacherName),
+            createdAt: item.created_at,
+            message: item.message,
+            attachments: item.attachments,
+            tone: fromStudent ? ("requester" as const) : ("staff" as const),
+          };
+        }),
+      ]
+    : [];
 
   const leftContent = (
     <>
@@ -247,7 +309,9 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
             aria-pressed={selected?.id === ticket.id}
             onClick={() => {
               setSelectedId(ticket.id);
+              setResolvedBy(null);
               setFollowUp("");
+              clearPendingAttachments();
               setReplyError(null);
               setActionError(null);
             }}
@@ -388,18 +452,10 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
                 >
                   {formatTicketDate(selected.created_at)}
                 </time>
+                <span className="ml-auto break-all font-mono text-[10px] text-[#6F6F6F]">
+                  Ticket {selected.id}
+                </span>
               </div>
-              <h2
-                className={cn(
-                  "mt-2 text-lg font-semibold leading-snug",
-                  getTicketStatusTheme(selected.status).titleClassName,
-                )}
-              >
-                {selected.question}
-              </h2>
-              <p className="mt-1 break-all font-mono text-[10px] text-[#6F6F6F]">
-                Ticket {selected.id}
-              </p>
             </header>
 
             <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
@@ -426,95 +482,29 @@ export function StudentTickets({ initialClassId }: { initialClassId: string }) {
                 </section>
               )}
 
-              <section className="space-y-3">
+              <section className="space-y-4">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#6F6F6F]">
                   Conversation
                 </h3>
-                {selected.replies.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-[#DADADA] p-3 text-sm text-[#6F6F6F]">
-                    No messages yet. Your teacher will reply here.
-                  </p>
-                ) : (
-                  selected.replies.map((item) => {
-                    const fromStudent = item.user_id === selected.student_id;
-                    if (isSystemReply(item.message)) {
-                      return (
-                        <div
-                          key={item.id}
-                          className="mx-auto max-w-[95%] rounded-lg border border-dashed border-[#D6C48A] bg-[#FFF9EA] px-3.5 py-2.5 text-sm"
-                        >
-                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#8A6414]">
-                            System update
-                          </p>
-                          <p className="whitespace-pre-wrap break-words text-[#5A4A1F]">
-                            {item.message}
-                          </p>
-                          <time
-                            dateTime={item.created_at}
-                            className="mt-1 block text-[10px] text-[#8A7A55]"
-                          >
-                            {formatTicketDate(item.created_at)}
-                          </time>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div
-                        key={item.id}
-                        className={cn(
-                          "max-w-[85%] rounded-lg border px-3.5 py-2.5 text-sm",
-                          fromStudent
-                            ? "ml-auto border-[#DADADA] bg-[#F7F7F7]"
-                            : "border-[#CFE0F7] bg-[#F5F9FF]",
-                        )}
-                      >
-                        <p className="mb-1 text-[11px] font-semibold text-[#5A5A5A]">
-                          {fromStudent ? "You" : "Teacher"}
-                        </p>
-                        <p className="whitespace-pre-wrap break-words text-[#111111]">
-                          {item.message}
-                        </p>
-                        <time
-                          dateTime={item.created_at}
-                          className="mt-1 block text-[10px] text-[#6F6F6F]"
-                        >
-                          {formatTicketDate(item.created_at)}
-                        </time>
-                      </div>
-                    );
-                  })
-                )}
+                <TicketThread
+                  entries={threadEntries}
+                  closed={selected.status === "RESOLVED"}
+                  closedBy={resolvedBy}
+                  emptyText="No messages yet. Your teacher will reply here."
+                />
 
                 {(selected.status === "OPEN" || selected.status === "ANSWERED") && (
-                  <form
+                  <TicketReplyPanel
+                    ticketId={selected.id}
+                    value={followUp}
+                    onChange={setFollowUp}
+                    pendingAttachments={pendingAttachments}
+                    onAttachmentsChange={setPendingAttachments}
+                    busy={replyBusy}
+                    error={replyError}
+                    submitLabel="Send follow-up"
                     onSubmit={sendFollowUp}
-                    className="space-y-2 rounded-lg border border-[#DADADA] p-3"
-                  >
-                    <label
-                      className="block space-y-1 text-sm font-medium text-[#111111]"
-                      htmlFor="student-ticket-follow-up"
-                    >
-                      Add details or a follow-up
-                      <textarea
-                        id="student-ticket-follow-up"
-                        rows={3}
-                        maxLength={10000}
-                        value={followUp}
-                        onChange={(event) => setFollowUp(event.target.value)}
-                        className="mt-1 w-full resize-y rounded-md border border-[#DADADA] bg-white px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                      />
-                    </label>
-                    {replyError && (
-                      <p role="alert" className="text-sm text-red-700">
-                        {replyError}
-                      </p>
-                    )}
-                    <div className="flex justify-end">
-                      <Button type="submit" disabled={replyBusy || !followUp.trim()}>
-                        {replyBusy ? "Sending…" : "Send follow-up"}
-                      </Button>
-                    </div>
-                  </form>
+                  />
                 )}
               </section>
             </div>

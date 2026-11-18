@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { addTicketReply, createTicket, getTicketCounts, listMyTickets, listTickets, markTicketSeen, reopenTicket, resolveTicket } from "./api";
+import {
+  addTicketReply,
+  createTicket,
+  deleteTicketAttachment,
+  fetchTicketAttachmentBlob,
+  getTicketCounts,
+  listMyTickets,
+  listTickets,
+  markTicketSeen,
+  reopenTicket,
+  resolveTicket,
+  uploadTicketAttachments,
+} from "./api";
 
 describe("ticket API", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -29,7 +41,65 @@ describe("ticket API", () => {
     expect(fetchMock.mock.calls[0][0]).toContain("/api/tickets/ticket-1/replies");
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       message: "Could you give another example?",
+      attachment_ids: [],
     });
+  });
+
+  it("binds uploaded image and emoji ids to a follow-up", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "reply-1", attachments: [] }), { status: 201 }),
+    );
+
+    await addTicketReply("ticket-1", "", ["att-1", "att-2"]);
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      message: "",
+      attachment_ids: ["att-1", "att-2"],
+    });
+  });
+
+  it("uploads images and emojis as multipart form data", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify([{ id: "att-1", kind: "IMAGE" }]), { status: 201 }),
+    );
+
+    const file = new File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" });
+    const uploaded = await uploadTicketAttachments("ticket-1", {
+      files: [file],
+      emojis: ["😀"],
+    });
+
+    expect(uploaded[0]).toMatchObject({ id: "att-1", kind: "IMAGE" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/api/tickets/ticket-1/attachments");
+    expect(init?.method).toBe("POST");
+    // The browser must add the multipart boundary itself.
+    expect(new Headers(init?.headers).get("Content-Type")).toBeNull();
+    const body = init?.body as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("files")).toBeInstanceOf(File);
+    expect(body.get("emojis")).toBe("😀");
+  });
+
+  it("deletes an unsent attachment and loads media with the bearer token", async () => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => (key === "qa.auth.token" ? "test-token" : null),
+    });
+    vi.stubGlobal("window", globalThis);
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(new Blob(["png"]), { status: 200 }));
+
+    await deleteTicketAttachment("att-1");
+    const blob = await fetchTicketAttachmentBlob("att-1");
+
+    expect(blob).toBeInstanceOf(Blob);
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/tickets/attachments/att-1");
+    expect(fetchMock.mock.calls[0][1]?.method).toBe("DELETE");
+    expect(new Headers(fetchMock.mock.calls[1][1]?.headers).get("Authorization")).toBe(
+      "Bearer test-token",
+    );
+    vi.unstubAllGlobals();
   });
 
   it("confirms an answered ticket as resolved", async () => {

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, RefreshCw } from "lucide-react";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
+import { PAGE_COLUMN, PageContainer } from "@/components/shared/PageShell";
 import { TeacherAttendanceWorkspace } from "@/features/attendance/teacher-attendance-workspace";
 import { studentApi, type StudentClass } from "@/lib/student-api";
 
@@ -54,9 +55,6 @@ export function TeacherAttendancePage() {
 
   const classFilter = (
     <div className="w-full min-w-0 sm:w-72">
-      <label htmlFor="attendance-class-filter" className="mb-1 block text-[11px] font-semibold text-[#DEE8F2]">
-        Class
-      </label>
       <AppSelect
         id="attendance-class-filter"
         aria-label="Filter attendance by class"
@@ -77,7 +75,7 @@ export function TeacherAttendancePage() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 md:p-6" role="status" aria-label="Loading classes">
+      <div className={PAGE_COLUMN} role="status" aria-label="Loading classes">
         <div className="h-32 animate-pulse rounded-xl border border-[#DADADA] bg-white" />
       </div>
     );
@@ -85,7 +83,7 @@ export function TeacherAttendancePage() {
 
   if (error) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+      <PageContainer>
         <div className="rounded-xl border border-red-200 bg-white p-8 text-center">
           <p className="text-sm font-medium text-red-700">{error}</p>
           <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void loadClasses()}>
@@ -93,19 +91,19 @@ export function TeacherAttendancePage() {
             Retry
           </Button>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (!selectedClass) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+      <PageContainer>
         <div className="rounded-xl border border-dashed border-[#DADADA] bg-white p-8 text-center">
           <BookOpen className="mx-auto size-8 text-[#8A8A8A]" aria-hidden="true" />
           <h1 className="mt-3 text-lg font-semibold text-[#111111]">No assigned classes</h1>
           <p className="mt-1 text-sm text-[#6F6F6F]">Attendance will appear after a class is assigned to you.</p>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
