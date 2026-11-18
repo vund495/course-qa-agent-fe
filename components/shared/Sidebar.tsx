@@ -150,6 +150,17 @@ export function SidebarNavBody({
             </Link>
           )}
 
+          {role === "student" && (
+            <Link
+              href="/student/attendance"
+              title="Attendance"
+              className={linkCls(pathname.startsWith("/student/attendance"))}
+            >
+              <CalendarCheck className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Attendance</span>}
+            </Link>
+          )}
+
           {role === "admin" && (
             <>
               <Link

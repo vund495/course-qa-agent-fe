@@ -9,6 +9,7 @@ import {
   Inbox,
   CalendarClock,
   CalendarDays,
+  CalendarCheck,
 } from "lucide-react";
 
 /** Roles mirror the backend RBAC (AI-27). Client-side filtering is UX only. */
@@ -87,6 +88,12 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Activity,
   },
   // Student Routes
+  {
+    href: "/student/attendance",
+    label: "Attendance",
+    roles: ["student"],
+    icon: CalendarCheck,
+  },
   {
     href: "/student",
     label: "Student Portal",
