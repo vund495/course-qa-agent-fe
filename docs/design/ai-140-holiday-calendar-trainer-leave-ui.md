@@ -14,6 +14,9 @@ workflow instead of introducing a second leave-request concept.
   account has an active assignment.
 - Trainers use the top-level `/teacher/attendance` workspace and filter by
   class. The legacy class attendance URL redirects to this workspace.
+- Students use the mirrored top-level `/student/attendance` workspace with the
+  same class filter and month controls (read-only). The legacy class attendance
+  URL redirects there, and the class tab row no longer has an Attendance tab.
 - Students read applicable holidays and session warnings from their class
   Schedule page. Students never receive holiday or leave management controls.
 

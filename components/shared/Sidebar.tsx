@@ -151,6 +151,17 @@ export function SidebarNavBody({
             </Link>
           )}
 
+          {role === "student" && (
+            <Link
+              href="/student/attendance"
+              title="Attendance"
+              className={linkCls(pathname.startsWith("/student/attendance"))}
+            >
+              <CalendarCheck className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Attendance</span>}
+            </Link>
+          )}
+
           {role !== "admin" && (
             <Link
               href={`${basePath}/tickets`}
@@ -414,7 +425,7 @@ export function AppSidebar({ role }: { role: Role }) {
       />
 
       {/* User Footer — collapsed rail keeps only the ticket bell. */}
-      {(!collapsed || role === "trainer" || role === "student") && (
+      {(!collapsed || role === "trainer" || role === "teaching_assistant" || role === "student") && (
         <div
           className={cn(
             "relative border-t border-[#DADADA]",
@@ -456,7 +467,9 @@ export function AppSidebar({ role }: { role: Role }) {
                   </span>
                   <span className="text-[11px] text-[#5A5A5A]">{roleLabel}</span>
                 </div>
-                {(role === "trainer" || role === "student") && <TicketNotificationBell />}
+                {(role === "trainer" || role === "teaching_assistant" || role === "student") && (
+                  <TicketNotificationBell />
+                )}
                 <button
                   onClick={() => setShowMenu(!showMenu)}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#6F6F6F] hover:bg-[#F7F7F7] hover:text-[#111111]"

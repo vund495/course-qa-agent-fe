@@ -71,7 +71,7 @@ export type TicketList = {
   page_size: number;
 };
 
-export type TicketClassCounts = {
+type TicketClassCounts = {
   class_id: string;
   class_code: string;
   class_name: string;

@@ -59,6 +59,37 @@ function classCountText(option: ClassOption): string | undefined {
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
+/**
+ * Empty-inbox copy. The trainer inbox is owner-scoped (AI-83), so an empty
+ * list usually means nothing was sent to this trainer yet — not that a filter
+ * hid the rows. `ownedTotal` is the sum of the trainer's own class counts and
+ * lets the empty state stay truthful under a status filter such as Open.
+ */
+export function ticketInboxEmptyCopy({
+  search,
+  filter,
+  total,
+  ownedTotal,
+}: {
+  search: string;
+  filter: Ticket["status"] | "all";
+  total: number;
+  ownedTotal?: number;
+}): { title: string; hint?: string } {
+  if (search.trim()) {
+    return { title: "No tickets match this search on this page." };
+  }
+  const nothingOwned = (ownedTotal ?? (filter === "all" ? total : undefined)) === 0;
+  if (nothingOwned) {
+    return {
+      title: "No tickets have been sent to you yet.",
+      hint:
+        "Student questions go to the trainer they were sent to. A ticket appears here after it is handed over to you.",
+    };
+  }
+  return { title: "No tickets match this filter." };
+}
+
 export function TicketInbox() {
   const [classes, setClasses] = React.useState<StudentClass[]>([]);
   const [classId, setClassId] = React.useState("");
@@ -252,6 +283,13 @@ export function TicketInbox() {
 
 
   const query = search.trim().toLowerCase();
+  const ownedTotal = counts
+    ? counts.items.reduce(
+        (sum, item) => sum + item.open_count + item.completed_count + item.expired_count,
+        0,
+      )
+    : undefined;
+  const emptyCopy = ticketInboxEmptyCopy({ search, filter, total: data?.total ?? 0, ownedTotal });
   const visible = error
     ? []
     : (data?.items ?? []).filter(
@@ -393,9 +431,12 @@ export function TicketInbox() {
           </Button>
         </div>
       ) : visible.length === 0 ? (
-        <p role="status" className="p-4 text-sm text-[#6F6F6F]">
-          {query ? "No tickets match this search on this page." : "No tickets match these filters."}
-        </p>
+        <div role="status" className="space-y-1 p-4 text-sm text-[#6F6F6F]">
+          <p className={emptyCopy.hint ? "font-medium text-[#111111]" : undefined}>
+            {emptyCopy.title}
+          </p>
+          {emptyCopy.hint ? <p>{emptyCopy.hint}</p> : null}
+        </div>
       ) : (
         visible.map((ticket) => (
           <button
@@ -493,7 +534,7 @@ export function TicketInbox() {
       <HandoverInbox onAnswered={() => setRetry((value) => value + 1)} />
       <TicketsInboxLayout
         title="Class Tickets"
-        subtitle="Student questions for your assigned classes. Newest first."
+        subtitle="Student questions sent to you. Newest first."
         titleBadge={
           !loading && !error && data ? (
             <span className="text-xs text-[#DEE8F2]">

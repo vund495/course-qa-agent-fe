@@ -12,7 +12,7 @@ import type { TicketAttachment } from "./api";
  * hand over the messages (plus status for the closed notice).
  */
 
-export type TicketThreadTone = "requester" | "staff";
+type TicketThreadTone = "requester" | "staff";
 
 export type TicketThreadEntry = {
   id: string;

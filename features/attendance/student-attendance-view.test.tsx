@@ -2,7 +2,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import StudentAttendancePage from "./page";
+import { StudentAttendanceView } from "./student-attendance-view";
 import {
   getMonthRange,
   getCurrentMonth,
@@ -11,16 +11,14 @@ import {
 } from "@/features/attendance/student-attendance-history";
 import { attendanceApi, type StudentAttendance } from "@/lib/attendance-api";
 
-vi.mock("next/navigation", () => ({
-  useParams: () => ({ id: "class-1234-uuid" }),
-}));
+const CLASS_ID = "class-1234-uuid";
 
-describe("StudentAttendancePage", () => {
+describe("StudentAttendanceView", () => {
   let host: HTMLDivElement;
   let root: Root;
 
   const mockAttendanceData: StudentAttendance = {
-    class_id: "class-1234-uuid",
+    class_id: CLASS_ID,
     date_from: "2026-11-01",
     date_to: "2026-11-30",
     total_sessions: 2,
@@ -104,7 +102,7 @@ describe("StudentAttendancePage", () => {
     vi.spyOn(attendanceApi, "myAttendance").mockReturnValue(new Promise(() => {}));
 
     await act(async () => {
-      root.render(<StudentAttendancePage />);
+      root.render(<StudentAttendanceView classId={CLASS_ID} />);
     });
 
     const skeleton = host.querySelector('[data-testid="attendance-loading-skeleton"]');
@@ -115,13 +113,13 @@ describe("StudentAttendancePage", () => {
     const spy = vi.spyOn(attendanceApi, "myAttendance").mockResolvedValue(mockAttendanceData);
 
     await act(async () => {
-      root.render(<StudentAttendancePage />);
+      root.render(<StudentAttendanceView classId={CLASS_ID} />);
     });
 
     const currentM = getCurrentMonth();
     const { from, to } = getMonthRange(currentM);
 
-    expect(spy).toHaveBeenCalledWith("class-1234-uuid", from, to);
+    expect(spy).toHaveBeenCalledWith(CLASS_ID, from, to);
     expect(host.textContent).toContain("My Attendance");
     expect(host.textContent).toContain("100.0%");
     expect(host.textContent).toContain("Attended Sessions");
@@ -137,7 +135,7 @@ describe("StudentAttendancePage", () => {
       .mockResolvedValueOnce(mockAttendanceData);
 
     await act(async () => {
-      root.render(<StudentAttendancePage />);
+      root.render(<StudentAttendanceView classId={CLASS_ID} />);
     });
 
     const errorAlert = host.querySelector('[data-testid="attendance-error-state"]');
@@ -163,7 +161,7 @@ describe("StudentAttendancePage", () => {
     const spy = vi.spyOn(attendanceApi, "myAttendance").mockResolvedValue(mockAttendanceData);
 
     await act(async () => {
-      root.render(<StudentAttendancePage />);
+      root.render(<StudentAttendanceView classId={CLASS_ID} />);
     });
 
     const prevBtn = host.querySelector('button[aria-label="Previous month"]') as HTMLButtonElement;
@@ -180,7 +178,7 @@ describe("StudentAttendancePage", () => {
     const spy = vi.spyOn(attendanceApi, "myAttendance").mockResolvedValue(mockAttendanceData);
 
     await act(async () => {
-      root.render(<StudentAttendancePage />);
+      root.render(<StudentAttendanceView classId={CLASS_ID} />);
     });
 
     const monthInput = host.querySelector('input[data-testid="month-select-input"]') as HTMLInputElement;
@@ -196,12 +194,27 @@ describe("StudentAttendancePage", () => {
       monthInput.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    expect(spy).toHaveBeenCalledWith("class-1234-uuid", "2026-05-01", "2026-05-31");
+    expect(spy).toHaveBeenCalledWith(CLASS_ID, "2026-05-01", "2026-05-31");
+  });
+
+  it("renders the class filter slot in the header", async () => {
+    vi.spyOn(attendanceApi, "myAttendance").mockResolvedValue(mockAttendanceData);
+
+    await act(async () => {
+      root.render(
+        <StudentAttendanceView
+          classId={CLASS_ID}
+          classFilter={<span data-testid="class-filter-slot">Class A</span>}
+        />,
+      );
+    });
+
+    expect(host.querySelector('[data-testid="class-filter-slot"]')).not.toBeNull();
   });
 
   it("displays empty state 'No attendance yet' when month has no sessions", async () => {
     vi.spyOn(attendanceApi, "myAttendance").mockResolvedValue({
-      class_id: "class-1234-uuid",
+      class_id: CLASS_ID,
       date_from: "2026-11-01",
       date_to: "2026-11-30",
       total_sessions: 0,
@@ -211,7 +224,7 @@ describe("StudentAttendancePage", () => {
     });
 
     await act(async () => {
-      root.render(<StudentAttendancePage />);
+      root.render(<StudentAttendanceView classId={CLASS_ID} />);
     });
 
     expect(host.textContent).toContain("No attendance yet");
