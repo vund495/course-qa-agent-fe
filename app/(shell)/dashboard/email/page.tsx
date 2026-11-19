@@ -146,7 +146,7 @@ export default function EmailPage() {
           <CardContent>
             {config?.email_dry_run && (
               <p role="status" className="mb-3 text-sm text-destructive">
-                Dry-run is still enabled in system config: emails are marked sent without being delivered.
+                Dry-run is still enabled in system config: emails are recorded as &quot;dry run&quot; and never delivered.
               </p>
             )}
             <form onSubmit={saveConfig} className="flex flex-col gap-3">

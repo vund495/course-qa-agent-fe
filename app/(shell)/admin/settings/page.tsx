@@ -630,7 +630,7 @@ export default function AdminSettingsPage() {
               </div>
               {config?.email_dry_run && (
                 <p role="status" className="text-[12px] text-[#9D4C38]">
-                  Dry-run is still enabled in system config: emails are marked sent without being delivered.
+                  Dry-run is still enabled in system config: emails are recorded as &quot;dry run&quot; and never delivered.
                 </p>
               )}
               <div className="flex flex-wrap gap-3">
