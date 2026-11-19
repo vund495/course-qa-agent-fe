@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { canAccessRoute, homeRouteFor, type Role, AUTH_ROLE_KEY } from './components/ui/nav-config';
 
-// Paths that don't require authentication
-const PUBLIC_PATHS = ['/', '/landing', '/login', '/styleguide'];
+// Paths that require authentication
+const PROTECTED_PREFIXES = ['/student', '/teacher', '/admin', '/dashboard', '/account'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -20,8 +20,11 @@ export function middleware(request: NextRequest) {
   // Get role from cookie (set during login)
   const roleCookie = request.cookies.get(AUTH_ROLE_KEY)?.value as Role | undefined;
 
-  // 1. Unauthenticated user trying to access ANY route (including '/')
-  if (!roleCookie && !PUBLIC_PATHS.includes(pathname)) {
+  // 1. Unauthenticated user trying to access a protected route
+  const isProtected = PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+  if (!roleCookie && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
