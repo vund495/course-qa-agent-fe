@@ -25,6 +25,7 @@ export function mapHistoryCitation(citation: ChatMessageCitation): ChatCitation 
       ? [citation.page]
       : [],
     pageLabel: citation.page_label ?? null,
+    section: citation.section ?? null,
     indexes: citation.indexes?.length ? citation.indexes : [citation.index],
     highlights,
   };
@@ -80,31 +81,202 @@ export function uniqueCitations(citations: ChatCitation[] | undefined): ChatCita
   });
 }
 
-/** Human-readable source label used inside the answer text. */
-export function citationInlineLabel(citation: ChatCitation): string {
-  const title = citation.title.trim() || 'Source';
-  let page = '';
-  if (citation.kind === 'curriculum') {
-    if (citation.pageLabel) {
-      const isPlural = citation.pages && citation.pages.length > 1;
-      page = ` - ${isPlural ? 'Pages' : 'Page'} ${citation.pageLabel}`;
-    } else if (citation.page !== null) {
-      page = ` - Page ${citation.page}`;
-    }
+const GENERIC_SOURCE_LABELS = new Set([
+  "course material",
+  "source",
+  "document",
+  "untitled",
+]);
+const FILE_EXTENSION_PATTERN =
+  /\.(?:pdf|docx?|pptx?|xlsx?|csv|txt|md|rtf|odt|odp|ods)$/i;
+const HTML_ENTITY_MAP: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+function decodeCitationEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16));
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&#(\d+);/g, (_, code: string) => {
+      try {
+        return String.fromCodePoint(Number(code));
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&(amp|lt|gt|quot|apos|nbsp);/gi, (_, name: string) =>
+      HTML_ENTITY_MAP[name.toLowerCase()] ?? "",
+    );
+}
+
+/** Strip inline HTML/markup and normalize whitespace for display-only labels. */
+export function cleanCitationText(value: string | null | undefined): string {
+  if (!value) return "";
+  return decodeCitationEntities(String(value))
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Display source name without a file extension or a generic fallback label. */
+export function citationSourceText(citation: ChatCitation): string {
+  const source = cleanCitationText(citation.title)
+    .replace(FILE_EXTENSION_PATTERN, "")
+    .trim();
+  return GENERIC_SOURCE_LABELS.has(source.toLowerCase()) ? "" : source;
+}
+
+/** Display section, removing a source prefix already shown separately. */
+export function citationSectionText(citation: ChatCitation): string {
+  let section = cleanCitationText(citation.section);
+  if (!section) return "";
+
+  const source = citationSourceText(citation);
+  if (!source) return section;
+
+  if (section.toLowerCase() === source.toLowerCase()) return "";
+  const rawSource = cleanCitationText(citation.title);
+  const sourceCandidates = [rawSource, source]
+    .filter(Boolean)
+    .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const prefix = new RegExp(
+    `^(?:${sourceCandidates.join("|")})\\s*(?:>|·|:|\\-|–|—|/)\\s*`,
+    "i",
+  );
+  section = section.replace(prefix, "").trim();
+  return section;
+}
+
+/** Localized page locator, e.g. `Trang 7` or `Trang 8-9`. */
+export function citationPageText(citation: ChatCitation): string {
+  if (citation.kind !== "curriculum") return "";
+  const pageLabel = citation.pageLabel?.trim();
+  const pages = (citation.pages ?? []).filter(
+    (page): page is number => typeof page === "number" && Number.isFinite(page),
+  );
+  if (pageLabel) return `Trang ${pageLabel}`;
+  if (pages.length > 1) return `Trang ${pages.join(", ")}`;
+  if (typeof citation.page === "number") return `Trang ${citation.page}`;
+  if (pages.length === 1) return `Trang ${pages[0]}`;
+  return "";
+}
+
+/** Last meaningful section segment; never repeats the document title. */
+export function citationLastSectionText(citation: ChatCitation): string {
+  const section = citationSectionText(citation);
+  if (!section) return "";
+  const segments = section
+    .split(/\s*(?:>|\u203a|\u00bb|\u2192|\uFFFD)\s*/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const last = segments[segments.length - 1] ?? "";
+  if (!last) return "";
+  const source = citationSourceText(citation);
+  if (source && last.toLowerCase() === source.toLowerCase()) return "";
+  return last;
+}
+
+/** Full description used as the inline citation's tooltip/accessible name. */
+export function citationFullDescription(citation: ChatCitation): string {
+  const title = cleanCitationText(citation.title).replace(/\s+([.,;:!?])/g, "$1");
+  const section = citationSectionText(citation).replace(
+    /\s+([.,;:!?])/g,
+    "$1",
+  );
+  return [title, section, citationPageText(citation)].filter(Boolean).join(" · ");
+}
+
+/** Hierarchical section number from the last path segment, e.g. `Mục 1.1`. */
+function citationNumberedSection(citation: ChatCitation): string {
+  const last = citationLastSectionText(citation);
+  if (!last) return "";
+  const match = last.match(
+    /^(?:(?:Mục|Section|Chapter|Chương)\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)+))\b/i,
+  );
+  const number = match?.[1] ?? match?.[2];
+  return number ? `Mục ${number}` : "";
+}
+
+/**
+ * Compact inline label built from real metadata: document name, hierarchical
+ * section number, and page. Falls back to the last section name, then to a
+ * readable source marker when no metadata exists.
+ */
+export function citationShortInlineLabel(
+  citation: ChatCitation,
+  marker?: number,
+): string {
+  const source = citationSourceText(citation);
+  const section = citationNumberedSection(citation);
+  const page = citationPageText(citation);
+  const parts = [source, section, page].filter(Boolean);
+  if (parts.length > 0) return parts.join(" · ");
+
+  const lastSection = citationLastSectionText(citation);
+  if (lastSection) return lastSection;
+  return marker !== undefined ? `Nguồn ${marker}` : "Nguồn tài liệu";
+}
+
+
+/** Compact curriculum locator: source · section · Trang page. */
+export function citationCurriculumLabel(citation: ChatCitation): string {
+  const parts = [
+    citationSourceText(citation),
+    citationSectionText(citation),
+    citationPageText(citation),
+  ];
+  const unique: string[] = [];
+  for (const part of parts) {
+    const cleaned = part.trim();
+    if (!cleaned) continue;
+    if (unique.some((existing) => existing.toLowerCase() === cleaned.toLowerCase())) continue;
+    unique.push(cleaned);
   }
-  return `${title}${page}`;
+  return unique.join(" · ");
+}
+
+/** Human-readable source label used inside the answer text for web citations. */
+export function citationInlineLabel(citation: ChatCitation): string {
+  if (citation.kind === "curriculum") return citationCurriculumLabel(citation);
+  return cleanCitationText(citation.title) || "Source";
+}
+
+/** Backward-compatible alias; curriculum locators now include source + Trang page. */
+export function citationInlineSectionLabel(citation: ChatCitation): string {
+  return citationCurriculumLabel(citation);
 }
 
 function escapeInlineLabel(value: string): string {
   return value.replace(/([\\*_~`[\]()#])/g, '\\$&');
 }
 
-const MARKER_GROUP = /(?:\[\d+(?:\s*,\s*\d+)*\])+/g;
+const PAGE_ONLY_LOCATOR =
+  String.raw`\(\s*(?:Page|Trang)\s+\d+(?:\s*[-–—]\s*\d+)?\s*\)[ \t]*`;
+const MARKER_GROUP = new RegExp(
+  `(?:${PAGE_ONLY_LOCATOR})?(?:\\[\\d+(?:\\s*,\\s*\\d+)*\\])+`,
+  "gi",
+);
+const PAGE_LOCATOR_PREFIX = new RegExp(`^${PAGE_ONLY_LOCATOR}`, "i");
 
 /**
- * Replace LLM citation markers (`[1]`, `[1][2]`) with readable italic source
- * labels, e.g. `(Git Lab Guide.pdf - Page 8)`. Fenced/inline code is left
- * untouched, and markers without a matching citation keep their raw form.
+ * Replace LLM citation markers (`[1]`, `[1][2]`) with readable source locators.
+ * Curriculum markers become section/page links so ChatMarkdown can render an
+ * accessible inline citation button; web labels keep their existing italic text.
+ * Fenced/inline code is left untouched, and markers without a matching citation
+ * keep their raw form.
  */
 export function formatInlineCitations(content: string, citations: ChatCitation[]): string {
   if (citations.length === 0 || !content.includes('[')) return content;
@@ -124,22 +296,51 @@ export function formatInlineCitations(content: string, citations: ChatCitation[]
       if (index % 2 === 1) return segment;
 
       return segment.replace(MARKER_GROUP, (match) => {
-        const labels: string[] = [];
+        const pagePrefix = match.match(PAGE_LOCATOR_PREFIX)?.[0] ?? "";
+        const markerText = pagePrefix ? match.slice(pagePrefix.length) : match;
+        const rendered: string[] = [];
+        const webLabels: string[] = [];
         const missing: number[] = [];
+        const seen = new Set<number>();
+        const seenCitations = new Set<ChatCitation>();
+        let hasCurriculum = false;
+        let hasCanonicalPage = false;
 
-        for (const raw of match.match(/\d+/g) ?? []) {
+        for (const raw of markerText.match(/\d+/g) ?? []) {
           const marker = Number(raw);
+          if (seen.has(marker)) continue;
+          seen.add(marker);
           const citation = byMarker.get(marker);
-          if (citation) labels.push(citationInlineLabel(citation));
-          else missing.push(marker);
+          if (!citation) {
+            missing.push(marker);
+            continue;
+          }
+          if (citation.kind === 'curriculum') {
+            hasCurriculum = true;
+            if (citationPageText(citation)) hasCanonicalPage = true;
+            if (seenCitations.has(citation)) continue;
+            seenCitations.add(citation);
+            const label = escapeInlineLabel(
+              citationShortInlineLabel(citation, marker),
+            );
+            rendered.push(`[${label}](#citation-${marker})`);
+          } else {
+            const label = escapeInlineLabel(citationInlineLabel(citation));
+            webLabels.push(label);
+            rendered.push(`*(${label})*`);
+          }
         }
 
-        if (labels.length === 0) return match;
-
-        const uniqueLabels = [...new Set(labels)].map(escapeInlineLabel);
-        const label = `*(${uniqueLabels.join('; ')})*`;
+        const keptPagePrefix = pagePrefix && !hasCanonicalPage ? pagePrefix : "";
         const leftovers = missing.map((marker) => `[${marker}]`).join('');
-        return `${label}${leftovers}`;
+        if (rendered.length === 0) {
+          return pagePrefix ? `${pagePrefix}${leftovers}` : leftovers || match;
+        }
+
+        const label = hasCurriculum
+          ? `(${rendered.join('; ')})`
+          : `*(${webLabels.join('; ')})*`;
+        return `${keptPagePrefix}${label}${leftovers}`;
       });
     })
     .join('');
