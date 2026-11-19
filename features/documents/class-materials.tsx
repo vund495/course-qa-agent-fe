@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, LoaderCircle, Upload, X } from "lucide-react";
+import { LoaderCircle, Upload, X } from "lucide-react";
 import { AppSelect } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
 import { AUTH_TOKEN_KEY } from "@/components/ui/nav-config";
@@ -30,8 +30,6 @@ import {
   fetchDocuments,
   fetchTeacherSyllabus,
   formatFileSize,
-  formatRelevanceReason,
-  isRelevanceWarning,
   rejectDocument,
   replaceNameError,
   retryDocument,
@@ -178,11 +176,6 @@ export function ClassMaterials({
   const [attachUnit, setAttachUnit] = React.useState("");
   const [attachingId, setAttachingId] = React.useState<string | null>(null);
   const [attachError, setAttachError] = React.useState<string | null>(null);
-  const [pendingRelevanceConfirm, setPendingRelevanceConfirm] = React.useState<DocumentItem | null>(null);
-  const [pendingUploadWarning, setPendingUploadWarning] = React.useState<{
-    file: File;
-    reason: string;
-  } | null>(null);
   const replaceInputRef = React.useRef<HTMLInputElement>(null);
 
   const [files, setFiles] = React.useState<File[]>([]);
@@ -385,45 +378,6 @@ export function ClassMaterials({
     setUploadState({ status: "idle" });
   }
 
-  async function handleForceUpload(file: File) {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    setUploadState({ status: "uploading" });
-    setPendingUploads(pendingRowsFor([file]));
-    try {
-      const [outcome] = await uploadDocuments({ token }, classId, [file], {
-        force: true,
-      });
-      setPendingUploads([]);
-      if (!outcome || outcome.error || outcome.warning || !outcome.item) {
-        const reason = outcome?.error ?? outcome?.warning ?? "File upload was rejected.";
-        setFileErrors([`${file.name}: ${reason}`]);
-        setUploadState({ status: "error", message: "File upload was rejected." });
-        return;
-      }
-      mergeUploadedDocuments([outcome.item]);
-      setFiles((prev) => prev.filter((f) => f.name !== file.name));
-      setFileErrors([]);
-      if (inputRef.current) inputRef.current.value = "";
-      setUploadState({
-        status: "done",
-        message: `Uploaded "${file.name}" for approval.`,
-      });
-      setPage(1);
-      notifyChanged("materials");
-      await load(filtersRef.current, 1, true);
-    } catch (err) {
-      setPendingUploads([]);
-      setUploadState({
-        status: "error",
-        message: err instanceof ApiError ? err.message : "Upload failed.",
-      });
-    }
-  }
-
   async function handleUpload() {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (!token) {
@@ -436,24 +390,10 @@ export function ClassMaterials({
     try {
       const outcomes = await uploadDocuments({ token }, classId, files);
       setPendingUploads([]);
-      const warned = outcomes.filter(
-        (outcome) => outcome.error === null && outcome.warning !== null,
-      );
       const failed = outcomes.filter((outcome) => outcome.error !== null);
       const added = outcomes
-        .filter((outcome) => outcome.error === null && outcome.warning === null && outcome.item)
+        .filter((outcome) => outcome.error === null && outcome.item)
         .map((outcome) => outcome.item as DocumentItem);
-
-      if (warned.length > 0) {
-        const firstWarned = warned[0];
-        const matchingFile = files.find((f) => f.name === firstWarned.fileName);
-        if (matchingFile && firstWarned.warning) {
-          setPendingUploadWarning({
-            file: matchingFile,
-            reason: firstWarned.warning,
-          });
-        }
-      }
 
       if (added.length > 0) {
         mergeUploadedDocuments(added);
@@ -466,8 +406,6 @@ export function ClassMaterials({
       if (failed.length > 0) {
         setFileErrors(failed.map((f) => `${f.fileName}: ${f.error ?? "rejected"}`));
         setUploadState({ status: "error", message: "Some files were rejected." });
-      } else if (warned.length > 0) {
-        setUploadState({ status: "idle" });
       } else {
         setFileErrors([]);
         setUploadState({
@@ -476,7 +414,7 @@ export function ClassMaterials({
         });
       }
 
-      // A warning/rejection in the same batch must not hide files that were
+      // A rejection in the same batch must not hide files that were
       // accepted: refresh the list and the sibling units panel right away.
       if (added.length > 0) {
         notifyChanged("materials");
@@ -1060,9 +998,7 @@ export function ClassMaterials({
                         title={d.status === "failed" ? (d.failureReason ?? "Document processing failed.") : undefined}
                         aria-label={
                           d.status === "failed"
-                            ? isRelevanceWarning(d)
-                              ? `Relevance warning: ${formatRelevanceReason(d.failureReason)}`
-                              : `Failed: ${d.failureReason ?? "Document processing failed."}`
+                            ? `Failed: ${d.failureReason ?? "Document processing failed."}`
                             : undefined
                         }
                         role={d.status === "failed" ? "status" : undefined}
@@ -1074,40 +1010,23 @@ export function ClassMaterials({
                             <span className="material-processing-dot h-1.5 w-1.5 rounded-full bg-[#4B9E76]" />
                             <span className="material-processing-dot h-1.5 w-1.5 rounded-full bg-[#4B9E76]" />
                           </span>
-                        ) : isRelevanceWarning(d) ? (
-                          <span className="h-2 w-2 rounded-full bg-[#B4881F]" />
                         ) : (
                           <span className={`h-2 w-2 rounded-full ${STATUS_DOT[d.status]}`} />
                         )}
                         <span
-                          className={`text-[12.5px] ${
-                            isRelevanceWarning(d) ? "font-medium text-[#8F6B16]" : STATUS_TEXT[d.status]
-                          }`}
+                          className={`text-[12.5px] ${STATUS_TEXT[d.status]}`}
                         >
-                          {isRelevanceWarning(d) ? "Unrelated warning" : STATUS_LABEL[d.status]}
+                          {STATUS_LABEL[d.status]}
                         </span>
                       </span>
-                      {d.status === "failed" && (
-                        isRelevanceWarning(d) ? (
-                          <div className="max-w-[340px] rounded-md border border-[#F5E2B3] bg-[#FFFBF0] p-2.5 text-[11.5px] leading-relaxed text-[#7C5E10] shadow-xs">
-                            <div className="flex items-center gap-1.5 font-semibold text-[#8F6B16] mb-1">
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#B4881F]" />
-                              <span>Course Relevance Warning</span>
-                            </div>
-                            <p className="text-[#654D1B]">{formatRelevanceReason(d.failureReason)}</p>
-                            <p className="mt-1 text-[11px] text-[#8F6B16] italic">
-                              This file does not appear related to this class. Is this intentional?
-                            </p>
-                          </div>
-                        ) : d.failureReason ? (
-                          <div
-                            className="max-w-[320px] rounded-md border border-[#F3D6CE] bg-[#FFF7F5] p-2 text-[11px] leading-relaxed text-[#9D4C38]"
-                            title={d.failureReason}
-                          >
-                            <span className="font-semibold block text-[#843B2A] mb-0.5">Rejection reason:</span>
-                            <span className="block break-words">{d.failureReason}</span>
-                          </div>
-                        ) : null
+                      {d.status === "failed" && d.failureReason && (
+                        <div
+                          className="max-w-[320px] rounded-md border border-[#F3D6CE] bg-[#FFF7F5] p-2 text-[11px] leading-relaxed text-[#9D4C38]"
+                          title={d.failureReason}
+                        >
+                          <span className="font-semibold block text-[#843B2A] mb-0.5">Rejection reason:</span>
+                          <span className="block break-words">{d.failureReason}</span>
+                        </div>
                       )}
                     </div>
                   </td>
@@ -1200,23 +1119,6 @@ export function ClassMaterials({
                       )}
                       {d.status === "failed" && (
                         <>
-                          {isRelevanceWarning(d) && (
-                            <button
-                              type="button"
-                              onClick={() => setPendingRelevanceConfirm(d)}
-                              disabled={
-                                retryingId === d.id ||
-                                rejectingId === d.id ||
-                                deletingId === d.id ||
-                                replacingId === d.id ||
-                                loading
-                              }
-                              title="Confirm and add this file to the class anyway"
-                              className={ACTION_WARNING}
-                            >
-                              {retryingId === d.id ? "Adding…" : "Confirm & Add"}
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => void handleRetry(d.id, false)}
@@ -1430,112 +1332,6 @@ export function ClassMaterials({
               className="rounded border border-[#DFB2A6] bg-white px-3.5 py-1.5 text-[13px] font-semibold text-[#9D4C38] shadow-xs transition-colors hover:bg-[#FFF7F5] disabled:opacity-50"
             >
               {rejectingId !== null ? "Rejecting…" : "Reject document"}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={pendingRelevanceConfirm !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingRelevanceConfirm(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-[#111111]">
-              <AlertTriangle className="h-5 w-5 text-[#B4881F]" />
-              Add this file to {className || "this class"}?
-            </DialogTitle>
-            <DialogDescription className="text-[13px] text-[#5A5A5A]">
-              The system detected this file may not be related to this course.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="my-2 space-y-2 rounded-md border border-[#F5E2B3] bg-[#FFFBF0] p-3 text-[12.5px] text-[#7C5E10]">
-            <p className="font-semibold text-[#111111]">
-              File: <span className="font-normal">{pendingRelevanceConfirm?.fileName}</span>
-            </p>
-            <p className="text-[12px]">
-              <span className="font-semibold text-[#8F6B16]">Detection: </span>
-              {formatRelevanceReason(pendingRelevanceConfirm?.failureReason ?? null)}
-            </p>
-          </div>
-          <p className="text-[12.5px] text-[#6F6F6F]">
-            Are you sure you want to add this file? If this material is intentional for this class, confirm below to index it into the knowledge base anyway.
-          </p>
-          <DialogFooter className="mt-4 flex gap-2 sm:justify-end">
-            <button
-              type="button"
-              onClick={() => setPendingRelevanceConfirm(null)}
-              className="rounded border border-[#DADADA] bg-white px-3 py-1.5 text-[13px] font-medium text-[#111111] hover:bg-[#F7F7F7]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (pendingRelevanceConfirm) {
-                  const id = pendingRelevanceConfirm.id;
-                  setPendingRelevanceConfirm(null);
-                  void handleRetry(id, true);
-                }
-              }}
-              className="rounded bg-[#111111] px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-xs hover:bg-[#2B2B2B]"
-            >
-              Yes, add file
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={pendingUploadWarning !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingUploadWarning(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-[#111111]">
-              <AlertTriangle className="h-5 w-5 text-[#B4881F]" />
-              Add this file to {className || "this class"}?
-            </DialogTitle>
-            <DialogDescription className="text-[13px] text-[#5A5A5A]">
-              The system detected this file may not be related to this course.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="my-2 space-y-2 rounded-md border border-[#F5E2B3] bg-[#FFFBF0] p-3 text-[12.5px] text-[#7C5E10]">
-            <p className="font-semibold text-[#111111]">
-              File: <span className="font-normal">{pendingUploadWarning?.file.name}</span>
-            </p>
-            <p className="text-[12px]">
-              <span className="font-semibold text-[#8F6B16]">Detection: </span>
-              {formatRelevanceReason(pendingUploadWarning?.reason ?? null)}
-            </p>
-          </div>
-          <p className="text-[12.5px] text-[#6F6F6F]">
-            Are you sure you want to add this file? If this material is intentional for this class, confirm below to add it for approval.
-          </p>
-          <DialogFooter className="mt-4 flex gap-2 sm:justify-end">
-            <button
-              type="button"
-              onClick={() => setPendingUploadWarning(null)}
-              className="rounded border border-[#DADADA] bg-white px-3 py-1.5 text-[13px] font-medium text-[#111111] hover:bg-[#F7F7F7]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                if (pendingUploadWarning) {
-                  const targetFile = pendingUploadWarning.file;
-                  setPendingUploadWarning(null);
-                  await handleForceUpload(targetFile);
-                }
-              }}
-              className="rounded bg-[#111111] px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-xs hover:bg-[#2B2B2B]"
-            >
-              Yes, add file
             </button>
           </DialogFooter>
         </DialogContent>

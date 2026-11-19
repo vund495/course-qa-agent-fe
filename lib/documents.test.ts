@@ -14,8 +14,6 @@ import {
   retryDocument,
   uploadDocuments,
   validationError,
-  isRelevanceWarning,
-  formatRelevanceReason,
 } from "./documents";
 
 function file(name: string, size: number): Pick<File, "name" | "size"> {
@@ -267,81 +265,6 @@ describe("rejectDocument (AI-55)", () => {
   });
 });
 
-describe("isRelevanceWarning and formatRelevanceReason", () => {
-  it("identifies course relevance warning by prefix or keyword", () => {
-    expect(
-      isRelevanceWarning({
-        status: "failed",
-        failureReason: "Course relevance: Content does not match C++ subject.",
-      })
-    ).toBe(true);
-
-    expect(
-      isRelevanceWarning({
-        status: "failed",
-        failureReason: "Document content is not relevant to this course.",
-      })
-    ).toBe(true);
-
-    expect(
-      isRelevanceWarning({
-        status: "failed",
-        failureReason: "Gemini embedding rate limit was hit repeatedly.",
-      })
-    ).toBe(false);
-
-    expect(
-      isRelevanceWarning({
-        status: "indexed",
-        failureReason: null,
-      })
-    ).toBe(false);
-  });
-
-  it("formats relevance reason cleanly by removing prefix", () => {
-    expect(
-      formatRelevanceReason("Course relevance: Content does not match C++ subject.")
-    ).toBe("Content does not match C++ subject.");
-
-    expect(
-      formatRelevanceReason("Syllabus covers AI topic, not C++ course.")
-    ).toBe("Syllabus covers AI topic, not C++ course.");
-
-    expect(formatRelevanceReason(null)).toBe("Document content does not match course subject.");
-  });
-
-  it("sends ?force=true on retryDocument when force is requested", async () => {
-    const calls: { url: string; init?: RequestInit }[] = [];
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      calls.push({ url: String(url), init });
-      return new Response(
-        JSON.stringify({
-          id: "doc-1",
-          file_name: "lesson.pdf",
-          file_type: ".pdf",
-          mime_type: "application/pdf",
-          size_bytes: 100,
-          uploader_id: "user-1",
-          class_id: "class-1",
-          class_name: "AI Class",
-          status: "processing",
-          failure_reason: null,
-          version: 1,
-          created_at: "2026-10-19T00:00:00Z",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }) as typeof fetch;
-    try {
-      await retryDocument({ token: "t" }, "doc-1", { force: true });
-      expect(calls[0].url).toContain("/api/documents/doc-1/retry?force=true");
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-});
-
 describe("fetchTeacherSyllabus (AI-166)", () => {
   it("maps draft units and per-unit material statuses", async () => {
     const calls: string[] = [];
@@ -402,37 +325,6 @@ describe("fetchTeacherSyllabus (AI-166)", () => {
 });
 
 describe("uploadDocuments (AI-166)", () => {
-  it("preserves the backend warning for a rejected per-file result", async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () =>
-      new Response(
-        JSON.stringify({
-          uploaded: [
-            {
-              file_name: "unrelated.md",
-              document: null,
-              error: null,
-              warning: "Course relevance: Content does not match this course.",
-            },
-          ],
-        }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
-      )) as typeof fetch;
-    try {
-      const [outcome] = await uploadDocuments(
-        { token: "t" },
-        "class-1",
-        [new File(["note"], "unrelated.md")],
-        { syllabusDocumentId: "syllabus-1", unitNumber: 1 },
-      );
-      expect(outcome.warning).toBe(
-        "Course relevance: Content does not match this course.",
-      );
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
   it("sends syllabus_document_id and unit_number with the files", async () => {
     let body: FormData | null = null;
     const originalFetch = globalThis.fetch;
