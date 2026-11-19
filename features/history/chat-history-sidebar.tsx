@@ -752,7 +752,7 @@ export function ChatHistorySidebar({
           )}
         >
           {/* Mirrors WorkspacePageHeader so the title and sub sit on the same baseline as the other tabs. */}
-          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 sm:px-5 md:px-6">
+          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[#294D72] px-4 py-3 sm:px-5 md:px-6">
             <div className="flex flex-col gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">
@@ -823,7 +823,7 @@ export function ChatHistorySidebar({
             collapsed ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
         >
-          <div className="flex h-[92px] shrink-0 items-center justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)]">
+          <div className="flex h-[92px] shrink-0 items-center justify-center border-b border-[#45698B] bg-[#294D72]">
             {onExpand ? (
               <button
                 type="button"
@@ -933,7 +933,7 @@ export function ChatHistorySidebar({
             Choose a past conversation from this class or start a new one.
           </DialogDescription>
 
-          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 sm:px-5">
+          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[#294D72] px-4 py-3 sm:px-5">
             <div className="flex flex-col gap-2">
               <div className="flex min-w-0 items-center justify-between gap-2">
                 <span className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">
