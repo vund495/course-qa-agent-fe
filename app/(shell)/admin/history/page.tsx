@@ -17,6 +17,11 @@ const STATUS_DOT: Record<string, string> = {
   sent: "bg-[#4B9E76]",
   pending: "bg-[#B4881F]",
   failed: "bg-[#C4644C]",
+  dry_run: "bg-[#6F6F6F]",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  dry_run: "dry run",
 };
 
 type Tab = "imports" | "emails";
@@ -282,7 +287,7 @@ export default function AdminHistoryPage() {
                       <td className="px-5 py-3">
                         <span className="flex items-center gap-2 text-[12.5px] text-[#111111]">
                           <span className={`w-2 h-2 rounded-full ${STATUS_DOT[e.status] ?? "bg-slate-400"}`} />
-                          {e.status}
+                          {STATUS_LABEL[e.status] ?? e.status}
                         </span>
                       </td>
                       <td className="px-5 py-3 text-[12.5px] text-[#5A5A5A] max-w-[220px] truncate" title={e.last_error}>{e.last_error || "-"}</td>

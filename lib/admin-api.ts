@@ -63,6 +63,8 @@ export type EmailStats = {
   pending: number;
   sent: number;
   failed: number;
+  // Simulated sends, counted apart from `sent` (AI-138).
+  dry_run?: number;
   // Live drain progress (AC-09) — present while "Send pending emails" is running.
   draining?: boolean;
   drain_started_at?: string | null;
@@ -80,6 +82,8 @@ export type EmailEntry = {
   last_error: string;
   created_at: string;
   sent_at: string | null;
+  last_attempt_at: string | null;
+  failed_at: string | null;
 };
 export type EmailConfig = {
   smtp_host: string;
