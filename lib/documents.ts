@@ -368,14 +368,12 @@ export type UploadOutcome = {
   fileName: string;
   item: DocumentItem | null;
   error: string | null;
-  warning: string | null;
 };
 
 type UploadRow = {
   file_name: string;
   document: DocumentRow | null;
   error: string | null;
-  warning?: string | null;
 };
 
 /**
@@ -411,7 +409,6 @@ export async function uploadDocuments(
     fileName: u.file_name,
     item: u.document ? toItem(u.document) : null,
     error: u.error,
-    warning: u.warning ?? null,
   }));
 }
 
@@ -518,24 +515,4 @@ export function validationError(file: Pick<File, "name" | "size">): string | nul
     return `${file.name}: exceeds 100MB per file.`;
   }
   return null;
-}
-
-export function isRelevanceWarning(d: Pick<DocumentItem, "status" | "failureReason">): boolean {
-  if (d.status !== "failed" || !d.failureReason) return false;
-  const reason = d.failureReason.toLowerCase();
-  return (
-    d.failureReason.startsWith("Course relevance:") ||
-    reason.includes("relevance") ||
-    reason.includes("not relevant") ||
-    reason.includes("does not match course") ||
-    reason.includes("unrelated")
-  );
-}
-
-export function formatRelevanceReason(reason: string | null): string {
-  if (!reason) return "Document content does not match course subject.";
-  if (reason.startsWith("Course relevance:")) {
-    return reason.slice("Course relevance:".length).trim();
-  }
-  return reason;
 }

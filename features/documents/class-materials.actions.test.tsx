@@ -82,6 +82,10 @@ function installFetch() {
           ],
         });
       }
+      if (init?.method === "POST" && value.includes("/material-1/retry")) {
+        currentRows = [row("processing")];
+        return response(currentRows[0]);
+      }
       if (value.includes("status=processing")) {
         return response({ items: [], total: 0, page: 1, page_size: 1 });
       }
@@ -187,6 +191,17 @@ describe("ClassMaterials action visibility", () => {
       );
     });
   }
+
+  it("shows a legacy failure reason and retries through the normal action", async () => {
+    const reason = "Course relevance: Content did not match this course.";
+    currentRows = [row("failed", { failure_reason: reason })];
+    await render(root!, <ClassMaterials classId="class-1" />);
+
+    expect(container.textContent).toContain(reason);
+    expect(actionLabels(container)).not.toContain("Confirm & Add");
+    await click(findButton(container, "Retry"));
+    expect(currentRows[0].status).toBe("processing");
+  });
 
   it("hides Replace and the duplicate Approve on a pending syllabus row", async () => {
     currentRows = [
