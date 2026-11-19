@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -49,9 +50,11 @@ function cleanMathDelimiters(text: string): string {
 export function MarkdownContent({
   content,
   className,
+  renderCitation,
 }: {
   content: string | null | undefined;
   className?: string;
+  renderCitation?: (marker: number, fallback: ReactNode) => ReactNode;
 }) {
   if (!content || !content.trim()) return null;
   const sanitized = cleanMathDelimiters(content);
@@ -117,6 +120,10 @@ export function MarkdownContent({
           pre: ({ children }) => <>{children}</>,
           hr: () => <hr className="my-4 border-[#E5E5E5]" />,
           a: ({ href, children }) => {
+            const citationMatch = href?.match(/^#citation-(\d+)$/);
+            if (citationMatch && renderCitation) {
+              return <>{renderCitation(Number(citationMatch[1]), children)}</>;
+            }
             if (!href) return <span className={LINK_CLASS}>{children}</span>;
             const external = /^https?:/i.test(href);
             return (

@@ -2,6 +2,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MessageBubble } from "./message-bubble";
+import type { ChatCitation } from "@/lib/sse";
 
 const ERROR_TEXT = "The answer could not be generated. Please try again.";
 
@@ -15,6 +16,55 @@ function render(props: Partial<React.ComponentProps<typeof MessageBubble>> = {})
     })
   );
 }
+
+describe("MessageBubble curriculum footer", () => {
+  const dsa = (index: number, page: number, section: string): ChatCitation => ({
+    index,
+    kind: "curriculum",
+    title: "Dsa.pdf",
+    url: null,
+    snippet: "Passage",
+    documentId: "doc-dsa",
+    page,
+    pages: [page],
+    pageLabel: String(page),
+    section,
+    indexes: [index],
+    highlights: [],
+  });
+
+  it("keeps the original horizontal Course Materials chips", () => {
+    const html = render({
+      content: "Answer",
+      citations: [
+        dsa(1, 12, "Dsa.pdf > 1.1 Introduction"),
+        dsa(2, 12, "Dsa.pdf > 1.2 Abstract Data Types"),
+        {
+          index: 3,
+          kind: "internet",
+          title: "Web Docs",
+          url: "https://example.com/docs",
+          snippet: "Web snippet",
+          documentId: null,
+          page: null,
+          indexes: [3],
+          highlights: [],
+        },
+      ],
+    });
+
+    expect(html).toContain("Course Materials");
+    expect(html).toContain('aria-label="Course Materials"');
+    expect(html).toContain("flex flex-wrap gap-2");
+    expect(html).toContain("[1]");
+    expect(html).toContain("[2]");
+    expect(html).toContain("1.1 Introduction");
+    expect(html).toContain("1.2 Abstract Data Types");
+    expect(html).toContain("Web Sources");
+    expect(html).toContain("Web Docs");
+    expect(html).not.toContain("Nguồn tài liệu");
+  });
+});
 
 describe("MessageBubble error retry", () => {
   it("offers a retry action on an error bubble", () => {

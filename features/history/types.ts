@@ -37,6 +37,7 @@ export interface ChatMessageCitation {
   page: number | null;
   pages?: number[] | null;
   page_label?: string | null;
+  section?: string | null;
   indexes?: number[] | null;
   highlights?: string[] | null;
 }
@@ -64,6 +65,18 @@ export interface ChatMessageItem {
 /**
  * Full conversation transcript details including chronologically ordered messages (AC-05, AC-07).
  */
+export interface PendingWebConsent {
+  id: string;
+  session_id: string;
+  scope_kind: 'missing' | 'full';
+  question: string;
+  query_scope: string[];
+  conflict_note?: string | null;
+  conflict_citations?: ChatMessageCitation[] | null;
+  expires_at: string;
+  assistant_message_id: string | null;
+}
+
 export interface ChatSessionDetail {
   id: string;
   session_id?: string;
@@ -72,6 +85,7 @@ export interface ChatSessionDetail {
   created_at?: string;
   updated_at?: string;
   messages: ChatMessageItem[];
+  pending_consent?: PendingWebConsent | null;
 }
 
 /** Alias for ChatSessionDetail */

@@ -4,42 +4,36 @@ import * as React from 'react';
 import { toast } from 'sonner';
 
 import { AUTH_TOKEN_KEY } from '@/components/ui/nav-config';
-import { normalizeCitationUrl } from '@/lib/citations';
+import {
+  citationCurriculumLabel,
+  citationFullDescription,
+  citationShortInlineLabel,
+  cleanCitationText,
+  normalizeCitationUrl,
+} from '@/lib/citations';
 import { cn } from '@/lib/utils';
 import type { ChatCitation } from '@/lib/sse';
 import { usePathname, useParams } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-/** Fetch the cited file; PDFs come back with the used passages already highlighted. */
+/** Fetch the original cited file; the caller jumps to the cited page. */
 async function fetchSource(citation: ChatCitation, token: string): Promise<Response> {
   const base = `${API_URL}/api/chat/sources/${encodeURIComponent(citation.documentId ?? '')}`;
-  const headers = { Authorization: `Bearer ${token}` };
-
-  const isPdf = !citation.title || citation.title.toLowerCase().endsWith('.pdf');
-  if (isPdf && citation.page !== null && citation.highlights.length > 0) {
-    const pages = citation.pages && citation.pages.length > 0 ? citation.pages : [citation.page];
-    const highlighted = await fetch(`${base}/highlight`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: citation.page, pages, passages: citation.highlights }),
-    });
-    if (highlighted.ok) return highlighted;
-    // 415 = not a PDF; any other failure also falls back to the plain file.
-  }
-  return fetch(base, { headers });
+  return fetch(base, { headers: { Authorization: `Bearer ${token}` } });
 }
 
 async function openClassSource(citation: ChatCitation) {
+  const title = cleanCitationText(citation.title);
   const isDocxOrPptx = Boolean(
-    citation.title &&
-      (citation.title.toLowerCase().endsWith('.docx') ||
-        citation.title.toLowerCase().endsWith('.doc') ||
-        citation.title.toLowerCase().endsWith('.pptx') ||
-        citation.title.toLowerCase().endsWith('.ppt'))
+    title &&
+      (title.toLowerCase().endsWith('.docx') ||
+        title.toLowerCase().endsWith('.doc') ||
+        title.toLowerCase().endsWith('.pptx') ||
+        title.toLowerCase().endsWith('.ppt'))
   );
   if (isDocxOrPptx) {
-    toast.info('In-document highlighting is available for PDF files. Opening source file.');
+    toast.info('Opening source file.');
   }
 
   const viewer = window.open('', '_blank');
@@ -57,13 +51,13 @@ async function openClassSource(citation: ChatCitation) {
       throw new Error(body?.detail || 'The source file could not be opened.');
     }
 
-    const targetPageHeader = response.headers.get('x-target-page');
-    const parsedTargetPage = targetPageHeader ? parseInt(targetPageHeader, 10) : null;
-    const finalPage = parsedTargetPage && !isNaN(parsedTargetPage) ? parsedTargetPage : citation.page;
-
+    const targetPage =
+      citation.page ??
+      (citation.pages ?? []).find((page) => typeof page === 'number') ??
+      null;
     const objectUrl = URL.createObjectURL(await response.blob());
     // #page jumps the browser's PDF viewer straight to the cited page.
-    const target = finalPage === null ? objectUrl : `${objectUrl}#page=${finalPage}`;
+    const target = targetPage === null ? objectUrl : `${objectUrl}#page=${targetPage}`;
     if (viewer) viewer.location.href = target;
     else window.open(target, '_blank', 'noopener,noreferrer');
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
@@ -73,7 +67,16 @@ async function openClassSource(citation: ChatCitation) {
   }
 }
 
-export function CitationChip({ citation }: { citation: ChatCitation }) {
+export function CitationChip({
+  citation,
+  variant = 'chip',
+  marker,
+}: {
+  citation: ChatCitation;
+  variant?: 'chip' | 'inline';
+  /** Exact marker clicked inline; aliases remain available in the citation. */
+  marker?: number;
+}) {
   const pathname = usePathname();
   const params = useParams();
   const classId = params?.id as string | undefined;
@@ -81,41 +84,21 @@ export function CitationChip({ citation }: { citation: ChatCitation }) {
   const isCurriculum = citation.kind === 'curriculum';
   const url = normalizeCitationUrl(citation.url);
   const markers = citation.indexes.length > 0 ? citation.indexes : [citation.index];
-  const markerLabel = markers.map((marker) => `[${marker}]`).join('');
-  const pages = citation.pages && citation.pages.length > 0
-    ? citation.pages
-    : citation.page !== null
-    ? [citation.page]
-    : [];
-
-  const pageLabel = citation.pageLabel
-    ? (citation.pages && citation.pages.length > 1 ? `Pages ${citation.pageLabel}` : `Page ${citation.pageLabel}`)
-    : pages.length > 1
-    ? `Pages ${pages.join(', ')}`
-    : pages.length === 1
-    ? `Page ${pages[0]}`
-    : '';
-
-  const label = isCurriculum
-    ? `${markerLabel} ${citation.title}${pageLabel ? ` · ${pageLabel}` : ''}`
-    : `${markerLabel} ${citation.title}`;
+  const markerLabel = markers.map((value) => `[${value}]`).join('');
+  const displayLabel = isCurriculum
+    ? citationCurriculumLabel(citation)
+    : cleanCitationText(citation.title) || 'Source';
+  const label = [markerLabel, displayLabel].filter(Boolean).join(' ');
+  const inlineText = citationShortInlineLabel(citation, marker);
+  const sourceTitle = cleanCitationText(citation.title).toLowerCase();
 
   const isSpreadsheetOrSyllabus = Boolean(
     isCurriculum &&
-      citation.title &&
-      (citation.title.toLowerCase().endsWith('.xlsx') ||
-        citation.title.toLowerCase().endsWith('.xls') ||
-        citation.title.toLowerCase().endsWith('.csv') ||
-        citation.title.toLowerCase().includes('syllabus'))
-  );
-
-  const isDocxOrPptx = Boolean(
-    isCurriculum &&
-      citation.title &&
-      (citation.title.toLowerCase().endsWith('.docx') ||
-        citation.title.toLowerCase().endsWith('.doc') ||
-        citation.title.toLowerCase().endsWith('.pptx') ||
-        citation.title.toLowerCase().endsWith('.ppt'))
+      sourceTitle &&
+      (sourceTitle.endsWith('.xlsx') ||
+        sourceTitle.endsWith('.xls') ||
+        sourceTitle.endsWith('.csv') ||
+        sourceTitle.includes('syllabus'))
   );
 
   const syllabusPath = React.useMemo(() => {
@@ -132,6 +115,14 @@ export function CitationChip({ citation }: { citation: ChatCitation }) {
   const handleClick = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    if (variant === 'inline' && isCurriculum) {
+      if (isSpreadsheetOrSyllabus && syllabusPath) {
+        window.open(syllabusPath, '_blank', 'noopener,noreferrer');
+      } else {
+        void openClassSource(citation);
+      }
+      return;
+    }
     if (!isCurriculum && url) {
       const cleanUrl = url.split('#:~:text=')[0];
       window.open(cleanUrl, '_blank', 'noopener,noreferrer');
@@ -144,16 +135,26 @@ export function CitationChip({ citation }: { citation: ChatCitation }) {
     }
   };
 
-  const hasHighlights = citation.highlights && citation.highlights.length > 0;
   const actionTooltip = url
     ? `Visit website: ${url}`
     : isSpreadsheetOrSyllabus && syllabusPath
-    ? `View in Syllabus: ${citation.title}`
-    : isDocxOrPptx
-    ? `Download document: ${citation.title} (In-document highlight available for PDF only)`
-    : `Open source file: ${citation.title}${
-        citation.page ? ` (Page ${citation.page}${hasHighlights ? '' : ' - Reference'})` : ''
-      }`;
+    ? `View in Syllabus: ${displayLabel || markerLabel}`
+    : `Open cited source: ${displayLabel || markerLabel}`;
+
+  if (variant === 'inline') {
+    const fullDescription = citationFullDescription(citation) || inlineText;
+    return (
+      <button
+        type="button"
+        title={fullDescription}
+        aria-label={inlineText}
+        onClick={handleClick}
+        className="inline cursor-pointer border-0 bg-transparent p-0 align-baseline font-normal not-italic text-inherit hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]/30 focus-visible:ring-offset-1"
+      >
+        {inlineText}
+      </button>
+    );
+  }
 
   return (
     <span className="relative inline-block align-baseline">

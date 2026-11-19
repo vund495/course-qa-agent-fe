@@ -3,6 +3,7 @@ import { AUTH_TOKEN_KEY } from '@/components/ui/nav-config';
 import {
   createSseParser,
   type ChatCitation,
+  type ChatConsentOffer,
   type ChatDoneEvent,
   type ChatProgressStage,
 } from '@/lib/sse';
@@ -32,6 +33,7 @@ interface UseChatStreamProps {
   onRestart?: (message?: string) => void;
   onCitation?: (citation: ChatCitation) => void;
   onSuggestions?: (questions: string[]) => void;
+  onConsent?: (offer: ChatConsentOffer) => void;
   onDone?: (event: ChatDoneEvent) => void;
   onFinish?: () => void;
   onError?: (error: Error) => void;
@@ -45,6 +47,7 @@ export function useChatStream({
   onRestart,
   onCitation,
   onSuggestions,
+  onConsent,
   onDone,
   onFinish,
   onError,
@@ -118,6 +121,8 @@ export function useChatStream({
           onCitation?.(event.citation);
         } else if (event.type === 'suggestions') {
           onSuggestions?.(event.questions);
+        } else if (event.type === 'consent') {
+          onConsent?.(event.offer);
         } else if (event.type === 'done') {
           if (event.suggestedQuestions && event.suggestedQuestions.length > 0) {
             onSuggestions?.(event.suggestedQuestions);
@@ -160,7 +165,7 @@ export function useChatStream({
         setIsStreaming(false);
       }
     }
-  }, [classId, sessionId, onChunk, onProgress, onRestart, onCitation, onSuggestions, onDone, onFinish, onError]);
+  }, [classId, sessionId, onChunk, onProgress, onRestart, onCitation, onSuggestions, onConsent, onDone, onFinish, onError]);
 
   return {
     sendMessage,
