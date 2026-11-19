@@ -15,9 +15,11 @@ export const PAGE_COLUMN = "w-full px-6 pt-8 pb-12";
 export function PageContainer({
   children,
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return <div className={cn(PAGE_COLUMN, className)}>{children}</div>;
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div className={cn(PAGE_COLUMN, className)} {...props}>
+      {children}
+    </div>
+  );
 }
