@@ -10,6 +10,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarCheck,
+  Layers,
 } from "lucide-react";
 
 /** Roles mirror the backend RBAC (AI-27). Client-side filtering is UX only. */
@@ -72,6 +73,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Admin Dashboard",
     roles: ["admin"],
     icon: LayoutDashboard,
+  },
+  {
+    href: "/admin/skills",
+    label: "Skill Taxonomy",
+    roles: ["admin"],
+    icon: Layers,
   },
   {
     href: "/admin/tickets/queue",
