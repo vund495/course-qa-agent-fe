@@ -51,10 +51,13 @@ export function MarkdownContent({
   content,
   className,
   renderCitation,
+  allowImages = true,
 }: {
   content: string | null | undefined;
   className?: string;
   renderCitation?: (marker: number, fallback: ReactNode) => ReactNode;
+  /** Ticket surfaces disable remote Markdown images; existing callers keep loading them. */
+  allowImages?: boolean;
 }) {
   if (!content || !content.trim()) return null;
   const sanitized = cleanMathDelimiters(content);
@@ -136,8 +139,16 @@ export function MarkdownContent({
               </a>
             );
           },
-          img: ({ src, alt }) =>
-            src ? (
+          img: ({ src, alt }) => {
+            if (!src) return null;
+            if (!allowImages) {
+              return (
+                <span className="mt-2 inline-block rounded-md border border-[#DADADA] bg-[#FAFAFA] px-2 py-1 text-[10.5px] text-[#6F6F6F]">
+                  {alt || "Image"}
+                </span>
+              );
+            }
+            return (
               // eslint-disable-next-line @next/next/no-img-element -- teacher-supplied URLs, no configured image domains
               <img
                 src={src}
@@ -145,7 +156,8 @@ export function MarkdownContent({
                 loading="lazy"
                 className="mt-3 max-w-full rounded-lg border border-[#DADADA]"
               />
-            ) : null,
+            );
+          },
           table: ({ children }) => (
             <div className="mt-3 overflow-x-auto">
               <table className="w-full border-collapse text-left text-[10.5px] text-[#111111]">
