@@ -71,6 +71,18 @@ describe('web consent stream bubble', () => {
     expect(bubble.traceCompleted).toBe(true);
   });
 
+  it('keeps follow-up suggestions for the web answer', () => {
+    let bubble = createWebConsentBubble('web-1');
+    bubble = applyWebConsentEvent(bubble, {
+      type: 'suggestions',
+      questions: ['How does std::endl differ from "\\n"?'],
+    });
+
+    expect(bubble.suggestedQuestions).toEqual([
+      'How does std::endl differ from "\\n"?',
+    ]);
+  });
+
   it('never appends a bubble into another conversation', () => {
     const existing = [{ id: 'doc-answer' }];
     const next = upsertMessageForSession(

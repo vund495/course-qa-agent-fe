@@ -148,6 +148,7 @@ export function ChatWindow({
   const [isTyping, setIsTyping] = React.useState(false); // Waiting state for the first chunk (to show typing indicator)
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
   const [pendingConsent, setPendingConsent] = React.useState<ChatConsentOffer | null>(null);
+  const [acceptingConsentId, setAcceptingConsentId] = React.useState<string | null>(null);
   const [consentBusy, setConsentBusy] = React.useState(false);
   const [webStreamingId, setWebStreamingId] = React.useState<string | null>(null);
   const consentControllerRef = React.useRef<AbortController | null>(null);
@@ -648,6 +649,9 @@ export function ChatWindow({
     const target = pendingConsent;
     if (!target || consentBusy) return;
     setConsentBusy(true);
+    // Hide only this offer while its request runs; the pending offer is kept so
+    // a failure can show the prompt again and require another click.
+    setAcceptingConsentId(target.id);
 
     const bubbleId = nextMsgId();
     const toMessage = (bubble: WebConsentBubble): Message => ({
@@ -660,6 +664,7 @@ export function ChatWindow({
       traceCompleted: bubble.traceCompleted,
       isError: bubble.isError,
       backendMessageId: bubble.backendMessageId,
+      suggestedQuestions: bubble.suggestedQuestions,
       canCreateFeedbackTicket: Boolean(bubble.backendMessageId),
       originalQuestion: target.question,
     });
@@ -704,6 +709,10 @@ export function ChatWindow({
             updateBubble(
               applyWebConsentEvent(bubble, { type: 'citation', citation }),
             ),
+          onSuggestions: (questions) =>
+            updateBubble(
+              applyWebConsentEvent(bubble, { type: 'suggestions', questions }),
+            ),
           onDone: (event) => {
             completed = true;
             updateBubble(applyWebConsentEvent(bubble, event));
@@ -723,6 +732,10 @@ export function ChatWindow({
           citations: uniqueCitations(
             (outcome.result.citations ?? []).map(mapHistoryCitation),
           ),
+          suggestedQuestions:
+            outcome.result.suggested_questions?.length
+              ? outcome.result.suggested_questions
+              : bubble.suggestedQuestions,
           traceCompleted: true,
           backendMessageId: outcome.result.assistant_message_id ?? undefined,
         });
@@ -749,6 +762,7 @@ export function ChatWindow({
         consentControllerRef.current = null;
       }
       setWebStreamingId((current) => (current === bubbleId ? null : current));
+      setAcceptingConsentId((current) => (current === target.id ? null : current));
       setConsentBusy(false);
     }
   };
@@ -951,7 +965,7 @@ export function ChatWindow({
                   />
               )}
 
-              {pendingConsent && (
+              {pendingConsent && pendingConsent.id !== acceptingConsentId && (
                 <div className="mb-3">
                   <WebConsentPrompt
                     offer={pendingConsent}
