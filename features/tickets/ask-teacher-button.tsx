@@ -19,6 +19,8 @@ import type { ChatCitation } from '@/lib/sse';
 import { CitationChip } from '@/features/citations/citation-chip';
 import { citationKey } from '@/lib/citations';
 import { TicketCitations } from './ticket-citations';
+import { TicketAgentAnswer } from './ticket-agent-answer';
+import { MarkdownContent } from '@/components/shared/MarkdownContent';
 import { addTicketReply, createTicket, getStudentTicket, reopenTicket, resolveTicket, type Ticket, type TicketReply } from './api';
 import { TicketAttachmentComposer, type PendingTicketAttachment } from './ticket-attachment-composer';
 import { TicketAttachmentList } from './ticket-attachment-list';
@@ -218,7 +220,11 @@ export function AskTeacherButton({
                 {ticket.original_question && <p className="whitespace-pre-wrap">{ticket.original_question}</p>}
                 {ticket.agent_answer && <div className="space-y-1">
                   <p className="text-xs font-medium text-[#777]">Agent answer</p>
-                  <p className="whitespace-pre-wrap rounded-md bg-[#F7F7F7] p-2">{ticket.agent_answer}</p>
+                  <TicketAgentAnswer
+                    content={ticket.agent_answer}
+                    sourceMessageId={ticket.source_message_id}
+                    className="max-h-40"
+                  />
                 </div>}
                 <p className="font-medium">{ticket.question}</p>
                 {replies.map((item) => {
@@ -334,11 +340,26 @@ export function AskTeacherButton({
                 <p className="font-medium">Original question</p>
                 <p className="max-h-28 overflow-y-auto rounded-md bg-[#F7F7F7] p-3 text-[#444]">{question}</p>
               </div>
-              <label className="block space-y-1.5 text-sm font-medium" htmlFor="ticket-agent-answer">
-                Agent answer
-                <textarea id="ticket-agent-answer" value={agentAnswer} readOnly rows={3}
-                  className="w-full rounded-md border border-[#DADADA] bg-[#F7F7F7] px-3 py-2 text-sm font-normal" />
-              </label>
+              <div className="space-y-1.5 text-sm font-medium">
+                <span>Agent answer</span>
+                {feedbackContext ? (
+                  <div
+                    id="ticket-agent-answer"
+                    className="max-h-40 overflow-y-auto rounded-md border border-[#DADADA] bg-[#F7F7F7] px-3 py-2 font-normal"
+                  >
+                    <MarkdownContent content={agentAnswer} allowImages={false} />
+                  </div>
+                ) : (
+                  <textarea
+                    id="ticket-agent-answer"
+                    aria-label="Agent answer"
+                    value={agentAnswer}
+                    readOnly
+                    rows={3}
+                    className="w-full rounded-md border border-[#DADADA] bg-[#F7F7F7] px-3 py-2 text-sm font-normal"
+                  />
+                )}
+              </div>
               {feedbackContext?.citations.map((citation) => <CitationChip key={citationKey(citation)} citation={citation} />)}
               <label className="block space-y-1.5 text-sm font-medium" htmlFor="ticket-question">
                 {feedbackContext ? 'Additional details (optional)' : 'Your question'}

@@ -7,6 +7,7 @@ import { TicketsInboxLayout } from "@/components/shared/TicketsInboxLayout";
 import { Button } from "@/components/ui/button";
 import { addTicketReply } from "@/features/tickets/api";
 import { TicketAttachmentComposer, type PendingTicketAttachment } from "@/features/tickets/ticket-attachment-composer";
+import { TicketAgentAnswer } from "@/features/tickets/ticket-agent-answer";
 import { TicketAttachmentList } from "@/features/tickets/ticket-attachment-list";
 import {
   TicketOwnerBadge,
@@ -249,9 +250,7 @@ export function AdminTicketQueue() {
                     <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#6F6F6F]">
                       Agent answer
                     </h3>
-                    <blockquote className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-[#E5E5E5] bg-white p-3 text-sm text-[#5A5A5A]">
-                      {selected.agent_answer}
-                    </blockquote>
+                    <TicketAgentAnswer content={selected.agent_answer} sourceMessageId={selected.source_message_id} className="max-h-40" />
                   </section>
                 )}
 

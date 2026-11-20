@@ -85,7 +85,7 @@ describe('confirmed answer ticket interactions', () => {
     await act(async () => { finish(new Response(JSON.stringify({ feedback: 'not_helpful' }))); });
     await click('Ask my teacher');
     expect(host.textContent).toContain('Original question');
-    expect(host.querySelector<HTMLTextAreaElement>('#ticket-agent-answer')?.value).toBe('Complete answer');
+    expect(host.querySelector('#ticket-agent-answer')?.textContent).toContain('Complete answer');
     await click('Cancel');
     expect(host.querySelector('[role="dialog"]')).toBeNull();
     expect(ticketPosts()).toHaveLength(0);

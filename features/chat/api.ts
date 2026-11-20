@@ -58,6 +58,7 @@ export type WebConsentResult = {
   status: 'accepted' | 'declined' | 'already_consumed';
   answer: string | null;
   citations: WebConsentCitation[];
+  suggested_questions?: string[];
   assistant_message_id: string | null;
 };
 
@@ -90,6 +91,7 @@ export type WebConsentStreamHandlers = {
   onToken: (text: string) => void;
   onRestart?: (message?: string) => void;
   onCitation: (citation: ChatCitation) => void;
+  onSuggestions?: (questions: string[]) => void;
   onDone: (event: ChatDoneEvent) => void;
 };
 
@@ -166,6 +168,8 @@ export async function streamWebConsent(
       handlers.onRestart?.(event.message);
     } else if (event.type === 'citation') {
       handlers.onCitation(event.citation);
+    } else if (event.type === 'suggestions') {
+      handlers.onSuggestions?.(event.questions);
     } else if (event.type === 'done') {
       completed = true;
       handlers.onDone(event);

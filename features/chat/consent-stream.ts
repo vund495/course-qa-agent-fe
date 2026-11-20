@@ -5,6 +5,7 @@ export type WebConsentBubble = {
   id: string;
   content: string;
   citations: ChatCitation[];
+  suggestedQuestions?: string[];
   trace: string[];
   traceStep: number;
   traceCompleted: boolean;
@@ -54,11 +55,17 @@ export function applyWebConsentEvent(
       citations: mergeCitation(bubble.citations, event.citation),
     };
   }
+  if (event.type === 'suggestions') {
+    return { ...bubble, suggestedQuestions: event.questions };
+  }
   if (event.type === 'done') {
     return {
       ...bubble,
       traceCompleted: true,
       backendMessageId: event.assistantMessageId ?? undefined,
+      ...(event.suggestedQuestions?.length
+        ? { suggestedQuestions: event.suggestedQuestions }
+        : {}),
     };
   }
   if (event.type === 'error') {
