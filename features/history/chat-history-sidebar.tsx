@@ -73,6 +73,25 @@ function railInitial(session: ChatSessionItem): string {
   return title ? title[0].toUpperCase() : '';
 }
 
+// One letter is not enough to tell two conversations apart, so the tile also
+// carries a hue derived from the session id. Same id always gets the same hue.
+const RAIL_TINTS = [
+  'bg-[#E8EEF6] text-[#294D72]',
+  'bg-[#EDF3EA] text-[#3F6B3A]',
+  'bg-[#F6EDE8] text-[#8A4B2F]',
+  'bg-[#F0EAF6] text-[#5B3F7A]',
+  'bg-[#E9F2F3] text-[#2F6B70]',
+  'bg-[#F6EFE4] text-[#7A5A2A]',
+];
+
+function railTint(sessionId: string): string {
+  let hash = 0;
+  for (let i = 0; i < sessionId.length; i += 1) {
+    hash = (hash * 31 + sessionId.charCodeAt(i)) | 0;
+  }
+  return RAIL_TINTS[Math.abs(hash) % RAIL_TINTS.length];
+}
+
 function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
   return (
     <>
@@ -399,6 +418,10 @@ export function ChatHistorySidebar({
   const startNewChat = () => {
     onNewChat?.();
     onMobileOpenChange?.(false);
+    // The turn that just finished may not have reached this list yet (a failed
+    // stream skips onTurnComplete), so pull the server's copy before the empty
+    // composer makes the previous conversation look lost.
+    void loadSessions();
   };
 
   // Execute deletion after user confirms in dialog (AC-05)
@@ -840,7 +863,17 @@ export function ChatHistorySidebar({
     );
   };
 
-  const railSessions = sessions.filter((session) => session.is_pinned);
+  // The collapsed rail shows the pinned conversations plus the newest recent
+  // ones. Showing pinned only left the rail empty for anyone who never pinned,
+  // which read as "my history is gone".
+  const RAIL_RECENT_LIMIT = 8;
+  const railPinned = sessions.filter((session) => session.is_pinned);
+  const railRecent = sessions.filter((session) => !session.is_pinned);
+  const railSessions = [
+    ...railPinned,
+    ...railRecent.slice(0, RAIL_RECENT_LIMIT),
+  ];
+  const railHiddenCount = Math.max(0, railRecent.length - RAIL_RECENT_LIMIT);
 
   return (
     <>
@@ -988,40 +1021,60 @@ export function ChatHistorySidebar({
           >
             {railSessions.length === 0 ? (
               <span className="mt-1 text-center text-[9px] font-medium leading-tight text-[#9F9F9F]">
-                Pin a chat
+                No chats yet
               </span>
             ) : (
-              railSessions.map((session) => {
-                const isActive = activeSessionId === session.id;
-                const initial = railInitial(session);
-                return (
-                  <button
-                    key={session.id}
-                    type="button"
-                    onClick={() => selectSession(session.id)}
-                    title={session.title || 'Conversation'}
-                    aria-label={`Open ${session.title || 'conversation'}`}
-                    aria-current={isActive ? 'true' : undefined}
-                    className={cn(
-                      'relative flex h-9 w-9 items-center justify-center rounded-xl border text-[11.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-line)]',
-                      isActive
-                        ? 'border-[var(--brand)] bg-[var(--brand)] text-white shadow-sm'
-                        : 'border-transparent text-[#6F6F6F] hover:border-[var(--brand-line)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-ink)]',
-                    )}
-                  >
-                    {initial || <MessageSquare className="h-4 w-4" />}
-                    <span
+              <>
+                {railSessions.map((session) => {
+                  const isActive = activeSessionId === session.id;
+                  const initial = railInitial(session);
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      onClick={() => selectSession(session.id)}
+                      title={session.title || 'Conversation'}
+                      aria-label={`Open ${session.title || 'conversation'}`}
+                      aria-current={isActive ? 'true' : undefined}
                       className={cn(
-                        'absolute -right-0.5 -top-0.5 flex h-3 w-3 items-center justify-center rounded-full',
-                        isActive ? 'bg-white text-[var(--brand)]' : 'bg-[var(--brand)] text-white',
+                        'relative flex h-9 w-9 items-center justify-center rounded-xl border text-[11.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-line)]',
+                        isActive
+                          ? 'border-[var(--brand)] bg-[var(--brand)] text-white shadow-sm'
+                          : cn(
+                              'border-transparent hover:border-[var(--brand-line)]',
+                              railTint(session.id),
+                            ),
                       )}
-                      aria-hidden="true"
                     >
-                      <Pin className="h-2 w-2 rotate-45" />
-                    </span>
+                      {initial || <MessageSquare className="h-4 w-4" />}
+                      {session.is_pinned && (
+                        <span
+                          className={cn(
+                            'absolute -right-0.5 -top-0.5 flex h-3 w-3 items-center justify-center rounded-full',
+                            isActive
+                              ? 'bg-white text-[var(--brand)]'
+                              : 'bg-[var(--brand)] text-white',
+                          )}
+                          aria-hidden="true"
+                        >
+                          <Pin className="h-2 w-2 rotate-45" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {railHiddenCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={onExpand}
+                    title={`${railHiddenCount} more conversation${railHiddenCount === 1 ? '' : 's'}`}
+                    aria-label={`Show ${railHiddenCount} more conversations`}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-[#DADADA] text-[10.5px] font-semibold text-[#6F6F6F] transition-colors hover:border-[var(--brand-line)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-line)]"
+                  >
+                    +{railHiddenCount}
                   </button>
-                );
-              })
+                )}
+              </>
             )}
           </div>
         </div>

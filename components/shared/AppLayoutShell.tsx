@@ -65,7 +65,7 @@ export function AppLayoutShell({ children }: { children: React.ReactNode }) {
               className={`relative flex-1 flex flex-col min-w-0 min-h-0 bg-[#E7EDF5] ${
                 isClassWorkspace
                   ? "overflow-hidden"
-                  : "overflow-y-auto [scrollbar-gutter:stable]"
+                  : "overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]"
               }`}
             >
               <ShellContent>{children}</ShellContent>

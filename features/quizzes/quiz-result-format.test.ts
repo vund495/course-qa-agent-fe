@@ -4,8 +4,10 @@ import {
   formatDateTime,
   formatPercentage,
   formatScore,
+  formatScoreOutOfTen,
   passRateHint,
   questionTypeLabel,
+  scoreOutOfTen,
 } from "./quiz-result-format";
 
 describe("quiz result formatting", () => {
@@ -44,5 +46,17 @@ describe("quiz result formatting", () => {
     expect(passRateHint(2, 3)).toBe("2 of 3 students passed");
     expect(passRateHint(1, 1)).toBe("1 of 1 student passed");
     expect(passRateHint(0, 0)).toBe("No official attempts yet");
+  });
+
+  it("converts raw points onto a 10-point scale", () => {
+    expect(scoreOutOfTen(7, 10)).toBe(7);
+    expect(scoreOutOfTen(3, 6)).toBe(5);
+    expect(scoreOutOfTen(1, 3)).toBe(3.33);
+    expect(scoreOutOfTen(0, 10)).toBe(0);
+    expect(scoreOutOfTen(5, 0)).toBeNull();
+    expect(scoreOutOfTen(null, 10)).toBeNull();
+    expect(formatScoreOutOfTen(1, 3)).toBe("3.33");
+    expect(formatScoreOutOfTen(9, 10)).toBe("9");
+    expect(formatScoreOutOfTen(1, 0)).toBe("—");
   });
 });

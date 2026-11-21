@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   BarChart3,
   CheckCircle2,
   ClipboardList,
@@ -121,16 +120,11 @@ export function QuizResults({ classId, quizId }: { classId: string; quizId: stri
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href={`/teacher/class/${classId}/quizzes/${quizId}`}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"
-        >
-          <ArrowLeft className="size-4" /> Back to quiz
-        </Link>
-      </div>
-
       <ClassPageHeader
+        backLink={{
+          href: `/teacher/class/${classId}/quizzes/${quizId}`,
+          label: "quiz",
+        }}
         title={statistics?.quiz_title ?? "Quiz results"}
         subtitle="Scores, pass rate and question-level performance. Only one official attempt per student is counted."
         badge={

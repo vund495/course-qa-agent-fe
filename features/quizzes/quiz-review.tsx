@@ -237,16 +237,8 @@ export function QuizReview({ classId, quizId }: { classId: string; quizId: strin
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href={`/teacher/class/${classId}/quizzes`}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"
-        >
-          <ArrowLeft className="size-4" /> Quizzes
-        </Link>
-      </div>
-
       <ClassPageHeader
+        backLink={{ href: `/teacher/class/${classId}/quizzes`, label: "Quizzes" }}
         title={quiz.title}
         subtitle={
           isPublished && quiz.approved_at

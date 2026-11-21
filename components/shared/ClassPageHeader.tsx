@@ -13,6 +13,9 @@ export function ClassPageHeader({
   badge,
   actions,
   className,
+  backLink,
+  bleed = true,
+  bleedTop = true,
 }: {
   id?: string;
   title: string;
@@ -20,6 +23,12 @@ export function ClassPageHeader({
   badge?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
+  /** Back target shown as a chevron beside the title. */
+  backLink?: { href: string; label: string };
+  /** Set false when the container has no page gutters. */
+  bleed?: boolean;
+  /** Set false when the header is not the first element on the page. */
+  bleedTop?: boolean;
 }) {
   return (
     <WorkspacePageHeader
@@ -29,6 +38,9 @@ export function ClassPageHeader({
       badge={badge}
       actions={actions}
       className={className}
+      backLink={backLink}
+      bleed={bleed}
+      bleedTop={bleedTop}
     />
   );
 }

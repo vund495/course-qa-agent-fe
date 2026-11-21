@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -32,6 +33,7 @@ import {
   remainingSeconds,
   serverClockOffset,
 } from "@/features/quizzes/quiz-take-utils";
+import { formatScoreOutOfTen } from "@/features/quizzes/quiz-result-format";
 import {
   studentQuizApi,
   type AnswerInput,
@@ -39,7 +41,13 @@ import {
   type QuizAttemptResult,
   type QuizAttemptSession,
 } from "@/lib/student-quiz-api";
-import { SkillRadarChart } from "@/features/quizzes/skill-radar-chart";
+
+// AI-187: the radar chart only appears on the result screen, after the attempt
+// is submitted, so it stays out of the quiz-taking first-load bundle.
+const SkillRadarChart = dynamic(
+  () => import("@/features/quizzes/skill-radar-chart").then((m) => m.SkillRadarChart),
+  { ssr: false },
+);
 
 type LocalAnswer = {
   selected_option_labels: string[];
@@ -639,8 +647,8 @@ function QuizResult({
           </div>
           <div className="text-right">
             <p className="text-[28px] font-bold leading-none text-[#111111]">
-              {result.total_score}
-              <span className="text-[14px] font-medium text-[#5A5A5A]">/{result.max_score}</span>
+              {formatScoreOutOfTen(result.total_score, result.max_score)}
+              <span className="text-[14px] font-medium text-[#5A5A5A]">/10</span>
             </p>
             <p className="mt-1 text-[12.5px] font-semibold text-[#5A5A5A]">
               {result.percentage}%
