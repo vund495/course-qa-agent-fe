@@ -326,3 +326,84 @@ The badge used to show `sessions.length` (rows rendered). It now shows
 `totalCount` (rows that exist). This is the correct meaning for a paginated list
 and matches what a student expects, but it is a visible change worth calling out
 in review.
+
+---
+
+## 8. Collapsed rail (follow-up, MR !154)
+
+### 8.1 Problem
+
+The collapsed rail listed **pinned sessions only**. A user who never pinned a
+conversation saw an empty rail — which reads as "my history is gone", not as
+"nothing is pinned". The rail is the only history affordance visible when the
+sidebar is collapsed, so an empty rail is a data-loss signal.
+
+### 8.2 Decision — pinned plus the newest recent
+
+```ts
+const RAIL_RECENT_LIMIT = 8;
+const railPinned = sessions.filter((s) => s.is_pinned);
+const railRecent = sessions.filter((s) => !s.is_pinned);
+const railSessions = [...railPinned, ...railRecent.slice(0, RAIL_RECENT_LIMIT)];
+const railHiddenCount = Math.max(0, railRecent.length - RAIL_RECENT_LIMIT);
+```
+
+Pinned first (they are the user's explicit choices), then the eight most
+recently updated. When more recent sessions exist, a dashed `+N` tile expands
+the sidebar. Eight keeps the rail within one screen height at 36px per tile
+plus the new-chat and expand controls.
+
+### 8.3 Tile content — one character plus a hue
+
+```ts
+function railInitial(session) {
+  const title = session.title?.trim();
+  return title ? title[0].toUpperCase() : '';
+}
+```
+
+The tile shows **exactly one character** — "C++ là gì" renders `C`. A title that
+is empty falls back to the `MessageSquare` icon.
+
+One letter cannot distinguish two conversations that start with the same
+letter, so each tile also carries a background/text pair chosen by a stable
+hash of the session id:
+
+```ts
+const RAIL_TINTS = [
+  'bg-[#E8EEF6] text-[#294D72]', 'bg-[#EDF3EA] text-[#3F6B3A]',
+  'bg-[#F6EDE8] text-[#8A4B2F]', 'bg-[#F0EAF6] text-[#5B3F7A]',
+  'bg-[#E9F2F3] text-[#2F6B70]', 'bg-[#F6EFE4] text-[#7A5A2A]',
+];
+```
+
+The same session id always gets the same hue, so the tile is a stable landmark
+rather than a random colour. The active session overrides the tint with the
+brand fill and white text.
+
+### 8.4 Rail states
+
+| State | Render |
+|---|---|
+| No sessions at all | `No chats yet` in 9px muted text |
+| Sessions, none pinned | Recent tiles only |
+| Sessions, some pinned | Pinned tiles (with pin badge) then recent tiles |
+| More than 8 recent | `+N` dashed tile that expands the sidebar |
+| Active session | Brand fill, white text, `aria-current="true"` |
+
+### 8.5 Stale list after a failed stream
+
+`startNewChat` now calls `loadSessions()` after clearing the composer. A turn
+that fails mid-stream never fires `onTurnComplete`, so `historyRefresh` never
+increments and the sidebar kept a list missing the conversation the user just
+had. Pulling the server's copy before the empty composer appears removes that
+window.
+
+### 8.6 Acceptance
+
+1. Collapse the sidebar with no pinned sessions → recent tiles are visible.
+2. A conversation titled "C++ là gì" shows `C`.
+3. Two conversations starting with the same letter have different tile colours.
+4. With more than 8 recent sessions, `+N` appears and expands the sidebar.
+5. Empty account shows `No chats yet`, not a blank strip.
+6. The active conversation is visually distinct from its tint.
