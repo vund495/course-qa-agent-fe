@@ -12,6 +12,7 @@ import type {
   ChatSessionDetail,
   ChatSessionItem,
   ChatSessionListResponse,
+  ChatSessionPageQuery,
   CreateSessionRequest,
   DeleteSessionResponse,
   RenameSessionRequest,
@@ -36,6 +37,33 @@ export async function getSessions(classId?: string): Promise<ChatSessionItem[]> 
   const query = isUuid ? `?class_id=${encodeURIComponent(classId!)}` : "";
   const res = await apiFetch<ChatSessionListResponse>(`/api/history${query}`);
   return res.items ?? [];
+}
+
+/**
+ * Fetch one keyset page of a sidebar section (AI-185).
+ *
+ * `getSessions()` stays untouched for callers that still want the full list;
+ * this one is the paginated path the sidebar uses. `cursor` is omitted entirely
+ * when null — sending `cursor=` would reach the backend as an empty string and
+ * be rejected as malformed.
+ *
+ * @param query Class scope, section, optional cursor, page size
+ * @returns One page of sessions plus the cursor for the next page
+ */
+export async function getSessionsPage({
+  classId,
+  section,
+  cursor,
+  limit = 20,
+}: ChatSessionPageQuery): Promise<ChatSessionListResponse> {
+  const params = new URLSearchParams({
+    class_id: classId,
+    section,
+    limit: String(limit),
+  });
+  if (cursor) params.set("cursor", cursor);
+
+  return apiFetch<ChatSessionListResponse>(`/api/history?${params.toString()}`);
 }
 
 /**
@@ -169,6 +197,7 @@ export async function togglePinSession(
  */
 export const historyApi = {
   getSessions,
+  getSessionsPage,
   getSessionDetail,
   createSession,
   renameSession,

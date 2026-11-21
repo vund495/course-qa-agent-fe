@@ -93,10 +93,33 @@ export type ChatDetailResponse = ChatSessionDetail;
 
 /**
  * Response payload for session listing endpoint `GET /api/history`.
+ *
+ * `next_cursor` is null on the last page and always null in the legacy offset
+ * mode, so existing callers see no change (AI-185).
  */
 export interface ChatSessionListResponse {
   items: ChatSessionItem[];
   total: number;
+  next_cursor?: string | null;
+}
+
+/**
+ * Sidebar section for cursor pagination (AI-185).
+ *
+ * The sidebar renders two blocks with opposite sort directions, so each block
+ * pages independently: `pinned` is FIFO by `pinned_at`, `recent` is newest-first
+ * by `updated_at`.
+ */
+export type ChatHistorySection = "recent" | "pinned";
+
+/**
+ * Query for one cursor page of the sidebar (AI-185).
+ */
+export interface ChatSessionPageQuery {
+  classId: string;
+  section: ChatHistorySection;
+  cursor?: string | null;
+  limit?: number;
 }
 
 /**
