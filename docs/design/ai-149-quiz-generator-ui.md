@@ -139,3 +139,56 @@ export interface QuizGenerateBlueprintRequest {
 * **Vitest Suite (`npm run test`):** 51/51 files passed, 314/314 tests passed (100% green).
 * **Production Build (`next build`):** Exit code 0, 30/30 routes compiled.
 
+
+---
+
+## 6. Bank-shortage guard (follow-up, MR !154)
+
+### 6.1 Problem
+
+The blueprint dialog let a teacher select any skill and any level, then sent
+the whole generation to the backend. If one cell of the matrix held fewer
+questions than `questionsPerLevel`, the backend rejected the entire request and
+the teacher had to work out which cell was short by trial and error.
+
+### 6.2 Decision — count the bank per cell, block before submitting
+
+`availability.cells` already carries `available_in_bank` per
+`(skill_id, difficulty)`. The dialog indexes it once:
+
+```ts
+const bankCounts = new Map<string, number>();
+for (const cell of availability?.cells ?? []) {
+  bankCounts.set(`${cell.skill_id}:${cell.difficulty.toUpperCase()}`,
+                 cell.available_in_bank);
+}
+```
+
+Three derived checks follow:
+
+| Helper | Question it answers |
+|---|---|
+| `countFor(skillId, level)` | How many questions exist for this cell |
+| `skillIsShort(skillId)` | Does **any** selected level fall short for this skill |
+| `levelIsShort(level)` | Does **any** selected skill fall short for this level |
+| `shortCells` | Which cells in the current selection are short, and by how many |
+
+### 6.3 Behaviour
+
+- A skill whose cells cannot fill every selected level is **not selectable**.
+- A level that cannot be filled by every selected skill is **not selectable**.
+- `Select all skills` now selects only the skills that can be filled:
+  ```ts
+  setSelectedSkillIds(skills.filter((s) => !skillIsShort(s.id)).map((s) => s.id));
+  ```
+- Submitting with a short cell in the selection is refused client-side with a
+  message naming the short cells, instead of a round trip that fails.
+
+### 6.4 Acceptance
+
+1. A skill with fewer than `questionsPerLevel` questions at a selected level
+   cannot be selected.
+2. `Select all skills` skips short skills.
+3. Submitting with a short cell shows the cell names and the shortfall, and
+   does not call the API.
+4. A fully fillable selection generates exactly as before.
