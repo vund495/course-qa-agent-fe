@@ -13,6 +13,23 @@ export function formatPercentage(value: number | null | undefined): string {
   return `${formatScore(value)}%`;
 }
 
+/** Raw points are quiz-specific; students read the result on a 10-point scale. */
+export function scoreOutOfTen(
+  totalScore: number | null | undefined,
+  maxScore: number | null | undefined,
+): number | null {
+  if (totalScore === null || totalScore === undefined || Number.isNaN(totalScore)) return null;
+  if (!maxScore || maxScore <= 0) return null;
+  return Math.round((totalScore / maxScore) * 10 * 100) / 100;
+}
+
+export function formatScoreOutOfTen(
+  totalScore: number | null | undefined,
+  maxScore: number | null | undefined,
+): string {
+  return formatScore(scoreOutOfTen(totalScore, maxScore));
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);
