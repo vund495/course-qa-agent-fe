@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -49,9 +50,14 @@ function cleanMathDelimiters(text: string): string {
 export function MarkdownContent({
   content,
   className,
+  renderCitation,
+  allowImages = true,
 }: {
   content: string | null | undefined;
   className?: string;
+  renderCitation?: (marker: number, fallback: ReactNode) => ReactNode;
+  /** Ticket surfaces disable remote Markdown images; existing callers keep loading them. */
+  allowImages?: boolean;
 }) {
   if (!content || !content.trim()) return null;
   const sanitized = cleanMathDelimiters(content);
@@ -117,6 +123,10 @@ export function MarkdownContent({
           pre: ({ children }) => <>{children}</>,
           hr: () => <hr className="my-4 border-[#E5E5E5]" />,
           a: ({ href, children }) => {
+            const citationMatch = href?.match(/^#citation-(\d+)$/);
+            if (citationMatch && renderCitation) {
+              return <>{renderCitation(Number(citationMatch[1]), children)}</>;
+            }
             if (!href) return <span className={LINK_CLASS}>{children}</span>;
             const external = /^https?:/i.test(href);
             return (
@@ -129,8 +139,16 @@ export function MarkdownContent({
               </a>
             );
           },
-          img: ({ src, alt }) =>
-            src ? (
+          img: ({ src, alt }) => {
+            if (!src) return null;
+            if (!allowImages) {
+              return (
+                <span className="mt-2 inline-block rounded-md border border-[#DADADA] bg-[#FAFAFA] px-2 py-1 text-[10.5px] text-[#6F6F6F]">
+                  {alt || "Image"}
+                </span>
+              );
+            }
+            return (
               // eslint-disable-next-line @next/next/no-img-element -- teacher-supplied URLs, no configured image domains
               <img
                 src={src}
@@ -138,7 +156,8 @@ export function MarkdownContent({
                 loading="lazy"
                 className="mt-3 max-w-full rounded-lg border border-[#DADADA]"
               />
-            ) : null,
+            );
+          },
           table: ({ children }) => (
             <div className="mt-3 overflow-x-auto">
               <table className="w-full border-collapse text-left text-[10.5px] text-[#111111]">

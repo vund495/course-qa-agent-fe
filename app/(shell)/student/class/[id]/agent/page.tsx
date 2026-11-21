@@ -29,7 +29,7 @@ export default function AgentPage() {
   };
 
   return (
-    <div className="-mx-6 flex h-full min-h-0 flex-1 overflow-hidden border-x border-b border-[#DADADA] bg-white">
+    <div className="-mx-6 flex h-full min-h-0 flex-1 overflow-hidden border-r border-b border-[#DADADA] bg-white">
       {/* GPT-style workspace: history sits inside the same surface and slides away. */}
       <ChatHistorySidebar
         classId={classId}

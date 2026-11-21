@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, ClipboardList, Clock } from "lucide-react";
+import { ClipboardList, Clock } from "lucide-react";
 import { WorkspacePageHeader } from "@/components/shared/WorkspacePageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,16 +77,8 @@ export function StudentQuizAttempts({ quizId }: { quizId: string }) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"
-        >
-          <ArrowLeft className="size-4" /> {backLabel}
-        </Link>
-      </div>
-
       <WorkspacePageHeader
+        backLink={{ href: backHref, label: backLabel }}
         title={quizTitle ?? "Quiz attempts"}
         subtitle="Every attempt you made for this quiz, newest first. The official attempt is the one counted for your class."
       />

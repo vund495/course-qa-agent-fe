@@ -129,3 +129,64 @@ The Question Bank interface provides a unified header with multi-action modal tr
 * **Unit Tests:** `npm run test` (`vitest run`) passing 100% (50/50 test files, 309/309 tests).
 * **Production Build:** `npm run build` cleanly compiling all 30 routes including `/teacher/class/[id]/question-bank`.
 
+
+---
+
+## 7. List pagination (follow-up, MR !154)
+
+### 7.1 Problem
+
+The bank page rendered every question in one scroll. A class bank can hold
+hundreds of rows, and each row renders a card with options, explanation and
+citation, so a large bank produced a very long DOM and a slow first paint.
+
+### 7.2 Decision — 20 per page, server-side
+
+```ts
+const PAGE_SIZE = 20;
+const [page, setPage] = React.useState(1);
+
+const filters = {
+  ...existingFilters,
+  skip: (page - 1) * PAGE_SIZE,
+  limit: PAGE_SIZE,
+};
+```
+
+`questionBankApi.list` already accepts `skip` / `limit`, so no backend change
+was needed. The page number is part of the effect's dependency list, so
+changing it refetches.
+
+### 7.3 Filter changes reset to page one
+
+```ts
+const changeFilter = React.useCallback((apply: () => void) => {
+  apply();
+  setPage(1);
+}, []);
+```
+
+Every filter control (search, skill, type, difficulty) goes through
+`changeFilter`. Without the reset, narrowing a filter while on page 5 would
+request rows 81–100 of a result set that may only have 12 rows, and the page
+would look empty.
+
+### 7.4 Numbering and the pager
+
+Row numbers are absolute, not page-relative:
+
+```tsx
+#{(page - 1) * PAGE_SIZE + idx + 1}
+```
+
+The pager renders only when `total > PAGE_SIZE` and shows
+`Showing 21–40 of 137 questions`, `Page 2 of 7`, and Previous / Next buttons
+disabled at the ends.
+
+### 7.5 Acceptance
+
+1. A bank with more than 20 questions shows 20 cards and a pager.
+2. Row numbers continue across pages (`#21` starts page 2).
+3. Changing any filter returns to page 1.
+4. A bank with 20 or fewer questions shows no pager.
+5. Previous is disabled on page 1; Next is disabled on the last page.

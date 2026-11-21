@@ -95,6 +95,11 @@ export default function QuestionBankPage() {
   const [typeFilter, setTypeFilter] = React.useState<string>("");
   const [difficultyFilter, setDifficultyFilter] = React.useState<string>("");
 
+  // Pagination: the bank can hold hundreds of rows, so the list is paged
+  // instead of rendering the whole table in one screen.
+  const PAGE_SIZE = 20;
+  const [page, setPage] = React.useState(1);
+
   // Expanded explanations
   const [expandedIds, setExpandedIds] = React.useState<Record<string, boolean>>({});
 
@@ -157,6 +162,8 @@ export default function QuestionBankPage() {
         skill_id: skillFilter || undefined,
         question_type: typeFilter || undefined,
         difficulty: difficultyFilter || undefined,
+        skip: (page - 1) * PAGE_SIZE,
+        limit: PAGE_SIZE,
       };
       const res = await questionBankApi.list(classId, filters);
       setQuestions(res.items);
@@ -170,9 +177,15 @@ export default function QuestionBankPage() {
     } finally {
       setLoading(false);
     }
-  }, [classId, search, skillFilter, typeFilter, difficultyFilter]);
+  }, [classId, search, skillFilter, typeFilter, difficultyFilter, page]);
 
-  // Effect to load questions whenever filter changes
+  // A filter change invalidates the current page, so go back to the first one.
+  const changeFilter = React.useCallback((apply: () => void) => {
+    apply();
+    setPage(1);
+  }, []);
+
+  // Effect to load questions whenever filter or page changes
   React.useEffect(() => {
     let active = true;
     const filters: BankQuestionFilter = {
@@ -180,6 +193,8 @@ export default function QuestionBankPage() {
       skill_id: skillFilter || undefined,
       question_type: typeFilter || undefined,
       difficulty: difficultyFilter || undefined,
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
     };
 
     questionBankApi
@@ -204,7 +219,7 @@ export default function QuestionBankPage() {
     return () => {
       active = false;
     };
-  }, [classId, search, skillFilter, typeFilter, difficultyFilter]);
+  }, [classId, search, skillFilter, typeFilter, difficultyFilter, page]);
 
   // Load skills and documents once
   React.useEffect(() => {
@@ -497,7 +512,7 @@ export default function QuestionBankPage() {
             type="text"
             placeholder="Search question stem, explanation, citation..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => changeFilter(() => setSearch(e.target.value))}
             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
@@ -506,7 +521,7 @@ export default function QuestionBankPage() {
           {/* Skill Filter */}
           <select
             value={skillFilter}
-            onChange={(e) => setSkillFilter(e.target.value)}
+            onChange={(e) => changeFilter(() => setSkillFilter(e.target.value))}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">All Skills ({skills.length})</option>
@@ -520,7 +535,7 @@ export default function QuestionBankPage() {
           {/* Type Filter */}
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
+            onChange={(e) => changeFilter(() => setTypeFilter(e.target.value))}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">All Question Types</option>
@@ -532,7 +547,7 @@ export default function QuestionBankPage() {
           {/* Difficulty Filter */}
           <select
             value={difficultyFilter}
-            onChange={(e) => setDifficultyFilter(e.target.value)}
+            onChange={(e) => changeFilter(() => setDifficultyFilter(e.target.value))}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">All Difficulties</option>
@@ -608,7 +623,9 @@ export default function QuestionBankPage() {
                 {/* Card Header */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-400">#{idx + 1}</span>
+                    <span className="text-xs font-semibold text-slate-400">
+                      #{(page - 1) * PAGE_SIZE + idx + 1}
+                    </span>
 
                     {/* Question Type Badge */}
                     <span
@@ -771,6 +788,42 @@ export default function QuestionBankPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination: the bank is paged so a large repository never renders in one screen. */}
+      {!loading && total > PAGE_SIZE && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <p className="text-xs text-slate-600">
+            Showing{" "}
+            <span className="font-semibold text-slate-900">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}
+            </span>{" "}
+            of <span className="font-semibold text-slate-900">{total}</span> questions
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              Previous
+            </Button>
+            <span className="text-xs font-medium text-slate-600">
+              Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page >= Math.ceil(total / PAGE_SIZE)}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
       </div>

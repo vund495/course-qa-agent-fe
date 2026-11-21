@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { Info, Copy, Check } from "lucide-react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
@@ -16,12 +17,18 @@ import {
 import { formatFileSize } from "@/lib/documents";
 import { ClassPageHeader } from "@/components/shared/ClassPageHeader";
 import { FileTypeIcon } from "@/components/shared/FileTypeIcon";
-import { MarkdownEditor } from "@/components/shared/MarkdownEditor";
 import { Modal } from "@/components/shared/Modal";
 import { AppSelect } from "@/components/ui/app-select";
 import { peekClassDetail } from "@/lib/class-cache";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { Reveal, SkeletonCard, SkeletonLine } from "@/components/shared/page-skeleton";
+
+// AI-187: the editor only renders inside the class-info form, so its toolbar
+// and Markdown preview stay out of the route's first-load bundle.
+const MarkdownEditor = dynamic(
+  () => import("@/components/shared/MarkdownEditor").then((m) => m.MarkdownEditor),
+  { loading: () => <div className="h-40 animate-pulse rounded-lg bg-[#F4F4F4]" /> },
+);
 
 function ReadOnlyField({
   label,

@@ -34,7 +34,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
-  getSessions,
+  getSessionsPage,
   deleteSession,
   renameSession,
   getHistoryErrorMessage,
@@ -42,6 +42,7 @@ import {
   togglePinSession,
 } from './api';
 import { splitHighlightParts } from './search-highlight';
+import { mergeSessionPages } from './merge-sessions';
 import type { ChatSessionItem, SearchResultItem } from './types';
 
 /**
@@ -70,6 +71,25 @@ function formatRelativeTime(isoString: string): string {
 function railInitial(session: ChatSessionItem): string {
   const title = session.title?.trim();
   return title ? title[0].toUpperCase() : '';
+}
+
+// One letter is not enough to tell two conversations apart, so the tile also
+// carries a hue derived from the session id. Same id always gets the same hue.
+const RAIL_TINTS = [
+  'bg-[#E8EEF6] text-[#294D72]',
+  'bg-[#EDF3EA] text-[#3F6B3A]',
+  'bg-[#F6EDE8] text-[#8A4B2F]',
+  'bg-[#F0EAF6] text-[#5B3F7A]',
+  'bg-[#E9F2F3] text-[#2F6B70]',
+  'bg-[#F6EFE4] text-[#7A5A2A]',
+];
+
+function railTint(sessionId: string): string {
+  let hash = 0;
+  for (let i = 0; i < sessionId.length; i += 1) {
+    hash = (hash * 31 + sessionId.charCodeAt(i)) | 0;
+  }
+  return RAIL_TINTS[Math.abs(hash) % RAIL_TINTS.length];
 }
 
 function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
@@ -148,9 +168,37 @@ export function ChatHistorySidebar({
   onMobileOpenChange,
 }: ChatHistorySidebarProps) {
   const isRight = side === 'right';
-  const [sessions, setSessions] = React.useState<ChatSessionItem[]>([]);
+
+  // AI-185: the sidebar pages two blocks independently. Pinned is FIFO by
+  // `pinned_at`, recent is newest-first by `updated_at`, so each block keeps its
+  // own cursor and its own list.
+  const [pinnedSessions, setPinnedSessions] = React.useState<ChatSessionItem[]>([]);
+  const [recentSessions, setRecentSessions] = React.useState<ChatSessionItem[]>([]);
+  // Stored for a future "Load more" on the pinned block (design doc §7.4). The
+  // block is capped at 50 in this ticket, so the value is written but not read.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [pinnedCursor, setPinnedCursor] = React.useState<string | null>(null);
+  const [recentCursor, setRecentCursor] = React.useState<string | null>(null);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  const [loadMoreError, setLoadMoreError] = React.useState<string | null>(null);
+
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Derived so the badge, the pinned rail, and the existing row handlers keep
+  // working against one flat list while the two blocks page separately.
+  const sessions = React.useMemo(
+    () => [...pinnedSessions, ...recentSessions],
+    [pinnedSessions, recentSessions],
+  );
+
+  // Mirror of the flat list so the pin handler can roll back to the exact rows
+  // it saw before the request, without depending on the two block arrays.
+  const sessionsRef = React.useRef<ChatSessionItem[]>([]);
+  React.useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   // State for delete confirmation modal
   const [sessionToDelete, setSessionToDelete] = React.useState<ChatSessionItem | null>(null);
@@ -200,36 +248,37 @@ export function ChatHistorySidebar({
 
   const handleTogglePin = async (session: ChatSessionItem) => {
     const nextPin = !session.is_pinned;
+    const before = sessionsRef.current;
     setOpenMenuId(null);
     setMenuCoords(null);
-    // Optimistic update
-    setSessions((prev) =>
-      sortSessionsWithPinned(
-        prev.map((s) =>
-          s.id === session.id
-            ? {
-                ...s,
-                is_pinned: nextPin,
-                pinned_at: nextPin ? new Date().toISOString() : null,
-              }
-            : s,
-        ),
-      ),
-    );
+
+    // Optimistic update: move the row between the two blocks locally so the
+    // sidebar reacts immediately.
+    const optimistic: ChatSessionItem = {
+      ...session,
+      is_pinned: nextPin,
+      pinned_at: nextPin ? new Date().toISOString() : null,
+    };
+    setPinnedSessions((prev) => {
+      const rest = prev.filter((s) => s.id !== session.id);
+      return nextPin ? [...rest, optimistic] : rest;
+    });
+    setRecentSessions((prev) => {
+      const rest = prev.filter((s) => s.id !== session.id);
+      return nextPin ? rest : [optimistic, ...rest];
+    });
 
     try {
-      const updated = await togglePinSession(session.id, nextPin);
-      setSessions((prev) =>
-        sortSessionsWithPinned(prev.map((s) => (s.id === updated.id ? updated : s))),
-      );
+      await togglePinSession(session.id, nextPin);
+      // Pinning changes which section a row belongs to, which invalidates both
+      // cursors, so refetch instead of splicing: one round trip keeps the two
+      // blocks consistent.
+      await loadSessions();
       toast.success(nextPin ? 'Pinned conversation to top.' : 'Unpinned conversation.');
     } catch (err) {
-      // Rollback
-      setSessions((prev) =>
-        sortSessionsWithPinned(
-          prev.map((s) => (s.id === session.id ? session : s)),
-        ),
-      );
+      // Rollback to the exact rows we had before the request.
+      setPinnedSessions(before.filter((s) => s.is_pinned));
+      setRecentSessions(before.filter((s) => !s.is_pinned));
       toast.error(`Pin action failed: ${getHistoryErrorMessage(err)}`);
     }
   };
@@ -279,14 +328,24 @@ export function ChatHistorySidebar({
   }, [searchQuery, classId, searchRetryKey]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Fetch past chat sessions for the current class
+  // Fetch the first page of both sidebar blocks (AI-185). Pinned is capped at
+  // 50 because a student rarely pins more; recent pages 20 at a time and grows
+  // through the "Load more" button.
   const loadSessions = React.useCallback(async () => {
     if (!classId) return;
     setIsLoading(true);
     setError(null);
+    setLoadMoreError(null);
     try {
-      const data = await getSessions(classId);
-      setSessions(data);
+      const [pinned, recent] = await Promise.all([
+        getSessionsPage({ classId, section: 'pinned', limit: 50 }),
+        getSessionsPage({ classId, section: 'recent', limit: 20 }),
+      ]);
+      setPinnedSessions(pinned.items);
+      setPinnedCursor(pinned.next_cursor ?? null);
+      setRecentSessions(recent.items);
+      setRecentCursor(recent.next_cursor ?? null);
+      setTotalCount(pinned.total + recent.total);
     } catch (err) {
       setError(getHistoryErrorMessage(err));
     } finally {
@@ -294,13 +353,26 @@ export function ChatHistorySidebar({
     }
   }, [classId]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     let isMounted = true;
     if (!classId) return;
 
-    getSessions(classId)
-      .then((data) => {
-        if (isMounted) setSessions(data);
+    setIsLoading(true);
+    setError(null);
+    setLoadMoreError(null);
+
+    Promise.all([
+      getSessionsPage({ classId, section: 'pinned', limit: 50 }),
+      getSessionsPage({ classId, section: 'recent', limit: 20 }),
+    ])
+      .then(([pinned, recent]) => {
+        if (!isMounted) return;
+        setPinnedSessions(pinned.items);
+        setPinnedCursor(pinned.next_cursor ?? null);
+        setRecentSessions(recent.items);
+        setRecentCursor(recent.next_cursor ?? null);
+        setTotalCount(pinned.total + recent.total);
       })
       .catch((err) => {
         if (isMounted) setError(getHistoryErrorMessage(err));
@@ -313,6 +385,30 @@ export function ChatHistorySidebar({
       isMounted = false;
     };
   }, [classId, refreshTrigger]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Append the next Recent page (AI-185). The guard stops a double click from
+  // firing two requests for the same cursor; a failure keeps the rows already
+  // on screen and only surfaces an inline message.
+  const loadMoreRecent = async () => {
+    if (!classId || !recentCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    setLoadMoreError(null);
+    try {
+      const page = await getSessionsPage({
+        classId,
+        section: 'recent',
+        cursor: recentCursor,
+        limit: 20,
+      });
+      setRecentSessions((prev) => mergeSessionPages(prev, page.items));
+      setRecentCursor(page.next_cursor ?? null);
+    } catch (err) {
+      setLoadMoreError(getHistoryErrorMessage(err));
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const selectSession = (sessionId: string) => {
     onSelectSession(sessionId);
@@ -322,6 +418,10 @@ export function ChatHistorySidebar({
   const startNewChat = () => {
     onNewChat?.();
     onMobileOpenChange?.(false);
+    // The turn that just finished may not have reached this list yet (a failed
+    // stream skips onTurnComplete), so pull the server's copy before the empty
+    // composer makes the previous conversation look lost.
+    void loadSessions();
   };
 
   // Execute deletion after user confirms in dialog (AC-05)
@@ -332,7 +432,10 @@ export function ChatHistorySidebar({
     const targetId = sessionToDelete.id;
     try {
       await deleteSession(targetId);
-      setSessions((prev) => prev.filter((s) => s.id !== targetId));
+      // The row can be in either block, so filter both and drop the badge by one.
+      setPinnedSessions((prev) => prev.filter((s) => s.id !== targetId));
+      setRecentSessions((prev) => prev.filter((s) => s.id !== targetId));
+      setTotalCount((prev) => Math.max(0, prev - 1));
       toast.success('Conversation deleted.');
       if (activeSessionId === targetId) {
         onNewChat?.();
@@ -359,7 +462,12 @@ export function ChatHistorySidebar({
     setIsRenaming(true);
     try {
       const updated = await renameSession(sessionToRename.id, title);
-      setSessions((prev) => prev.map((session) => (session.id === updated.id ? updated : session)));
+      // Rename does not touch `updated_at`, so the row keeps its position; patch
+      // it in place in whichever block holds it.
+      const patch = (prev: ChatSessionItem[]) =>
+        prev.map((session) => (session.id === updated.id ? updated : session));
+      setPinnedSessions(patch);
+      setRecentSessions(patch);
       setSessionToRename(null);
       toast.success('Conversation renamed.');
     } catch (err) {
@@ -698,6 +806,29 @@ export function ChatHistorySidebar({
     const pinnedSessions = sessions.filter((s) => s.is_pinned);
     const recentSessions = sessions.filter((s) => !s.is_pinned);
 
+    // AI-185: the Recent block grows one page at a time. A load-more failure
+    // keeps the rows already on screen and only shows this inline message.
+    const loadMoreControl = (
+      <>
+        {recentCursor && (
+          <button
+            type="button"
+            onClick={loadMoreRecent}
+            disabled={isLoadingMore}
+            data-testid="history-load-more"
+            className="mt-1 w-full rounded-md border border-[#DADADA] bg-white px-2.5 py-1.5 text-[11.5px] font-medium text-[#111111] hover:bg-[#F7F7F7] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLoadingMore ? 'Loading.' : 'Load more'}
+          </button>
+        )}
+        {loadMoreError && (
+          <p className="px-2 pt-1 text-[11px] text-[#9D4C38]" role="alert">
+            {loadMoreError}
+          </p>
+        )}
+      </>
+    );
+
     if (pinnedSessions.length > 0) {
       return (
         <div className="flex flex-col gap-2">
@@ -718,6 +849,7 @@ export function ChatHistorySidebar({
             <div className="flex flex-col gap-1">
               {recentSessions.map((session) => renderSessionItem(session))}
             </div>
+            {loadMoreControl}
           </div>
         </div>
       );
@@ -726,11 +858,22 @@ export function ChatHistorySidebar({
     return (
       <div className="flex flex-col gap-1">
         {sessions.map((session) => renderSessionItem(session))}
+        {loadMoreControl}
       </div>
     );
   };
 
-  const railSessions = sessions.filter((session) => session.is_pinned);
+  // The collapsed rail shows the pinned conversations plus the newest recent
+  // ones. Showing pinned only left the rail empty for anyone who never pinned,
+  // which read as "my history is gone".
+  const RAIL_RECENT_LIMIT = 8;
+  const railPinned = sessions.filter((session) => session.is_pinned);
+  const railRecent = sessions.filter((session) => !session.is_pinned);
+  const railSessions = [
+    ...railPinned,
+    ...railRecent.slice(0, RAIL_RECENT_LIMIT),
+  ];
+  const railHiddenCount = Math.max(0, railRecent.length - RAIL_RECENT_LIMIT);
 
   return (
     <>
@@ -752,18 +895,18 @@ export function ChatHistorySidebar({
           )}
         >
           {/* Mirrors WorkspacePageHeader so the title and sub sit on the same baseline as the other tabs. */}
-          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 sm:px-5 md:px-6">
+          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[#294D72] px-4 py-3 sm:px-5 md:px-6">
             <div className="flex flex-col gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">
                   Chat History
                 </span>
-                {sessions.length > 0 && (
+                {totalCount > 0 && (
                   <span
                     className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-white/15 px-1 text-[10px] font-semibold leading-none text-white"
-                    aria-label={`${sessions.length} conversations`}
+                    aria-label={`${totalCount} conversations`}
                   >
-                    {sessions.length > 99 ? '99+' : sessions.length}
+                    {totalCount > 99 ? '99+' : totalCount}
                   </span>
                 )}
                 {onCollapse && (
@@ -823,7 +966,7 @@ export function ChatHistorySidebar({
             collapsed ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
         >
-          <div className="flex h-[92px] shrink-0 items-center justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)]">
+          <div className="flex h-[92px] shrink-0 items-center justify-center border-b border-[#45698B] bg-[#294D72]">
             {onExpand ? (
               <button
                 type="button"
@@ -878,40 +1021,60 @@ export function ChatHistorySidebar({
           >
             {railSessions.length === 0 ? (
               <span className="mt-1 text-center text-[9px] font-medium leading-tight text-[#9F9F9F]">
-                Pin a chat
+                No chats yet
               </span>
             ) : (
-              railSessions.map((session) => {
-                const isActive = activeSessionId === session.id;
-                const initial = railInitial(session);
-                return (
-                  <button
-                    key={session.id}
-                    type="button"
-                    onClick={() => selectSession(session.id)}
-                    title={session.title || 'Conversation'}
-                    aria-label={`Open ${session.title || 'conversation'}`}
-                    aria-current={isActive ? 'true' : undefined}
-                    className={cn(
-                      'relative flex h-9 w-9 items-center justify-center rounded-xl border text-[11.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-line)]',
-                      isActive
-                        ? 'border-[var(--brand)] bg-[var(--brand)] text-white shadow-sm'
-                        : 'border-transparent text-[#6F6F6F] hover:border-[var(--brand-line)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-ink)]',
-                    )}
-                  >
-                    {initial || <MessageSquare className="h-4 w-4" />}
-                    <span
+              <>
+                {railSessions.map((session) => {
+                  const isActive = activeSessionId === session.id;
+                  const initial = railInitial(session);
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      onClick={() => selectSession(session.id)}
+                      title={session.title || 'Conversation'}
+                      aria-label={`Open ${session.title || 'conversation'}`}
+                      aria-current={isActive ? 'true' : undefined}
                       className={cn(
-                        'absolute -right-0.5 -top-0.5 flex h-3 w-3 items-center justify-center rounded-full',
-                        isActive ? 'bg-white text-[var(--brand)]' : 'bg-[var(--brand)] text-white',
+                        'relative flex h-9 w-9 items-center justify-center rounded-xl border text-[11.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-line)]',
+                        isActive
+                          ? 'border-[var(--brand)] bg-[var(--brand)] text-white shadow-sm'
+                          : cn(
+                              'border-transparent hover:border-[var(--brand-line)]',
+                              railTint(session.id),
+                            ),
                       )}
-                      aria-hidden="true"
                     >
-                      <Pin className="h-2 w-2 rotate-45" />
-                    </span>
+                      {initial || <MessageSquare className="h-4 w-4" />}
+                      {session.is_pinned && (
+                        <span
+                          className={cn(
+                            'absolute -right-0.5 -top-0.5 flex h-3 w-3 items-center justify-center rounded-full',
+                            isActive
+                              ? 'bg-white text-[var(--brand)]'
+                              : 'bg-[var(--brand)] text-white',
+                          )}
+                          aria-hidden="true"
+                        >
+                          <Pin className="h-2 w-2 rotate-45" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {railHiddenCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={onExpand}
+                    title={`${railHiddenCount} more conversation${railHiddenCount === 1 ? '' : 's'}`}
+                    aria-label={`Show ${railHiddenCount} more conversations`}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-[#DADADA] text-[10.5px] font-semibold text-[#6F6F6F] transition-colors hover:border-[var(--brand-line)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-line)]"
+                  >
+                    +{railHiddenCount}
                   </button>
-                );
-              })
+                )}
+              </>
             )}
           </div>
         </div>
@@ -933,7 +1096,7 @@ export function ChatHistorySidebar({
             Choose a past conversation from this class or start a new one.
           </DialogDescription>
 
-          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[linear-gradient(112deg,#294D72_0%,#365F85_68%,#47759A_100%)] px-4 py-3 sm:px-5">
+          <div className="flex h-[92px] shrink-0 flex-col justify-center border-b border-[#45698B] bg-[#294D72] px-4 py-3 sm:px-5">
             <div className="flex flex-col gap-2">
               <div className="flex min-w-0 items-center justify-between gap-2">
                 <span className="font-heading text-balance text-[21px] font-bold leading-tight tracking-tight text-white sm:text-[24px]">

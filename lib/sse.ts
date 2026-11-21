@@ -8,11 +8,24 @@ export type ChatCitation = {
   page: number | null;
   pages?: number[];
   pageLabel?: string | null;
+  section?: string | null;
   indexes: number[];
   highlights: string[];
 };
 
 export type ChatProgressStage = "searching" | "reading" | "drafting";
+
+export type ChatConsentOffer = {
+  id: string;
+  sessionId: string;
+  scopeKind: "missing" | "full";
+  question: string;
+  queryScope: string[];
+  conflictNote: string | null;
+  conflictCitations: ChatCitation[];
+  expiresAt: string;
+  assistantMessageId: string | null;
+};
 
 export type ChatStreamEvent =
   | { type: "progress"; stage: ChatProgressStage; message?: string }
@@ -20,6 +33,7 @@ export type ChatStreamEvent =
   | { type: "restart"; message?: string }
   | { type: "citation"; citation: ChatCitation }
   | { type: "suggestions"; questions: string[] }
+  | { type: "consent"; offer: ChatConsentOffer }
   | {
       type: "done";
       source: string;
@@ -39,6 +53,40 @@ type EventHandler = (event: ChatStreamEvent) => void;
 
 function invalidData(): never {
   throw new Error("Invalid SSE data received from the chat API.");
+}
+
+function decodeCitation(data: Record<string, unknown>): ChatCitation {
+  if (
+    typeof data.index !== "number" ||
+    (data.kind !== "curriculum" && data.kind !== "internet") ||
+    typeof data.title !== "string" ||
+    typeof data.snippet !== "string"
+  ) {
+    return invalidData();
+  }
+  const pages = Array.isArray(data.pages)
+    ? data.pages.filter((value): value is number => typeof value === "number")
+    : undefined;
+  const rawPageLabel = data.page_label ?? data.pageLabel;
+  const pageLabel = typeof rawPageLabel === "string" ? rawPageLabel : undefined;
+  return {
+    index: data.index,
+    kind: data.kind,
+    title: data.title,
+    url: typeof data.url === "string" ? data.url : null,
+    snippet: data.snippet,
+    documentId: typeof data.document_id === "string" ? data.document_id : null,
+    page: typeof data.page === "number" ? data.page : null,
+    ...(pages !== undefined ? { pages } : {}),
+    ...(pageLabel !== undefined ? { pageLabel } : {}),
+    section: typeof data.section === "string" ? data.section : null,
+    indexes: Array.isArray(data.indexes)
+      ? data.indexes.filter((value): value is number => typeof value === "number")
+      : [],
+    highlights: Array.isArray(data.highlights)
+      ? data.highlights.filter((value): value is string => typeof value === "string")
+      : [],
+  };
 }
 
 function decodeEvent(eventName: string, rawData: string): ChatStreamEvent | null {
@@ -73,33 +121,7 @@ function decodeEvent(eventName: string, rawData: string): ChatStreamEvent | null
   }
 
   if (eventName === "citation") {
-    if (
-      typeof data.index !== "number" ||
-      (data.kind !== "curriculum" && data.kind !== "internet") ||
-      typeof data.title !== "string" ||
-      typeof data.snippet !== "string"
-    ) {
-      return invalidData();
-    }
-    return {
-      type: "citation",
-      citation: {
-        index: data.index,
-        kind: data.kind,
-        title: data.title,
-        url: typeof data.url === "string" ? data.url : null,
-        snippet: data.snippet,
-        documentId:
-          typeof data.document_id === "string" ? data.document_id : null,
-        page: typeof data.page === "number" ? data.page : null,
-        indexes: Array.isArray(data.indexes)
-          ? data.indexes.filter((value): value is number => typeof value === "number")
-          : [],
-        highlights: Array.isArray(data.highlights)
-          ? data.highlights.filter((value): value is string => typeof value === "string")
-          : [],
-      },
-    };
+    return { type: "citation", citation: decodeCitation(data) };
   }
 
   if (eventName === "suggestions") {
@@ -111,6 +133,42 @@ function decodeEvent(eventName: string, rawData: string): ChatStreamEvent | null
     if (!rawList) return invalidData();
     const questions = rawList.filter((q): q is string => typeof q === "string");
     return { type: "suggestions", questions };
+  }
+
+  if (eventName === "consent") {
+    if (
+      typeof data.id !== "string" ||
+      typeof data.session_id !== "string" ||
+      (data.scope_kind !== "missing" && data.scope_kind !== "full") ||
+      typeof data.question !== "string" ||
+      !Array.isArray(data.query_scope) ||
+      typeof data.expires_at !== "string"
+    ) {
+      return invalidData();
+    }
+    return {
+      type: "consent",
+      offer: {
+        id: data.id,
+        sessionId: data.session_id,
+        scopeKind: data.scope_kind,
+        question: data.question,
+        queryScope: data.query_scope.filter(
+          (value): value is string => typeof value === "string",
+        ),
+        conflictNote: typeof data.conflict_note === "string" ? data.conflict_note : null,
+        conflictCitations: Array.isArray(data.conflict_citations)
+          ? data.conflict_citations.map((item) =>
+              item && typeof item === "object"
+                ? decodeCitation(item as Record<string, unknown>)
+                : invalidData(),
+            )
+          : [],
+        expiresAt: data.expires_at,
+        assistantMessageId:
+          typeof data.assistant_message_id === "string" ? data.assistant_message_id : null,
+      },
+    };
   }
 
   if (eventName === "done") {

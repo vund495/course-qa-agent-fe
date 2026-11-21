@@ -25,6 +25,7 @@ describe("createSseParser", () => {
           snippet: "Evidence",
           documentId: "doc-1",
           page: 2,
+          section: null,
           indexes: [],
           highlights: [],
         },
@@ -155,6 +156,57 @@ describe("createSseParser", () => {
     expect(events).toEqual([{ type: "token", text: "Still here" }]);
   });
 
+  it("parses a typed consent offer for reload-safe web consent", () => {
+    const events: ChatStreamEvent[] = [];
+    const parser = createSseParser((event) => events.push(event));
+
+    parser.push(
+      'event: consent\ndata: {"id":"offer-1","session_id":"session-1","scope_kind":"missing","question":"What is X and Y?","query_scope":["Y"],"expires_at":"2026-11-16T10:00:00Z","assistant_message_id":"assistant-1"}\n\n',
+    );
+
+    expect(events).toEqual([
+      {
+        type: "consent",
+        offer: {
+          id: "offer-1",
+          sessionId: "session-1",
+          scopeKind: "missing",
+          question: "What is X and Y?",
+          queryScope: ["Y"],
+          conflictNote: null,
+          conflictCitations: [],
+          expiresAt: "2026-11-16T10:00:00Z",
+          assistantMessageId: "assistant-1",
+        },
+      },
+    ]);
+  });
+
+  it("parses conflict warnings and both-side citations on a consent offer", () => {
+    const events: ChatStreamEvent[] = [];
+    const parser = createSseParser((event) => events.push(event));
+
+    parser.push(
+      'event: consent\ndata: {"id":"offer-1","session_id":"session-1","scope_kind":"missing","question":"What is X and Y?","query_scope":["Y"],"conflict_note":"Source 1 says early; source 2 says late.","conflict_citations":[{"index":1,"kind":"curriculum","title":"one.pdf","snippet":"early"},{"index":2,"kind":"curriculum","title":"two.pdf","snippet":"late"}],"expires_at":"2026-11-16T10:00:00Z"}\n\n',
+    );
+
+    expect(events).toHaveLength(1);
+    const consent = events[0];
+    if (consent.type !== "consent") throw new Error("expected consent");
+    expect(consent.offer.conflictNote).toContain("Source 1 says early");
+    expect(consent.offer.conflictCitations.map((citation) => citation.title)).toEqual([
+      "one.pdf",
+      "two.pdf",
+    ]);
+  });
+
+  it("rejects malformed consent offers", () => {
+    const parser = createSseParser(() => undefined);
+    expect(() =>
+      parser.push('event: consent\ndata: {"id":"offer-1","scope_kind":"missing"}\n\n'),
+    ).toThrow("Invalid SSE data");
+  });
+
   it("flushes a final event that arrived without a blank line", () => {
     const events: ChatStreamEvent[] = [];
     const parser = createSseParser((event) => events.push(event));
@@ -184,11 +236,40 @@ describe("createSseParser", () => {
           snippet: "Text",
           documentId: null,
           page: null,
+          section: null,
           indexes: [],
           highlights: [],
         },
       },
     ]);
+  });
+
+  it("parses the curriculum section locator on a citation", () => {
+    const events: ChatStreamEvent[] = [];
+    const parser = createSseParser((event) => events.push(event));
+
+    parser.push(
+      'event: citation\ndata: {"index":1,"kind":"curriculum","title":"lesson.pdf","snippet":"Text","document_id":"doc-1","page":8,"section":"Chapter 2 > Transport","indexes":[1],"highlights":["Text"]}\n\n',
+    );
+
+    expect(events[0]).toMatchObject({
+      type: "citation",
+      citation: { section: "Chapter 2 > Transport", page: 8 },
+    });
+  });
+
+  it("decodes live multi-page range labels on a citation", () => {
+    const events: ChatStreamEvent[] = [];
+    const parser = createSseParser((event) => events.push(event));
+
+    parser.push(
+      'event: citation\ndata: {"index":1,"kind":"curriculum","title":"lesson.pdf","snippet":"Text","document_id":"doc-1","page":8,"pages":[8,9],"page_label":"8-9","indexes":[1],"highlights":["Text"]}\n\n',
+    );
+
+    expect(events[0]).toMatchObject({
+      type: "citation",
+      citation: { page: 8, pages: [8, 9], pageLabel: "8-9" },
+    });
   });
 
   it("parses a restart event so the client can clear partial text", () => {

@@ -312,3 +312,53 @@ Manual, with a published quiz that has submissions:
 11. Empty class (no submissions), empty class quiz list, and empty student history all
     render their `EmptyState`.
 12. Mobile: cards stack, tables scroll, header actions wrap.
+
+---
+
+## Appendix A — Scores on a 10-point scale (follow-up, MR !154)
+
+### A.1 Problem
+
+The result screen printed raw points (`{total_score}/{max_score}`). A quiz worth
+6 points showed `3/6`; a quiz worth 30 showed `21/30`. Students read a mark as
+"out of ten", so the same performance looked like two different results.
+
+### A.2 Decision
+
+Raw points stay the storage and grading unit — the backend contract is
+unchanged. Conversion happens at the display edge only:
+
+```ts
+// features/quizzes/quiz-result-format.ts
+scoreOutOfTen(total, max): number | null   // round(total / max * 10, 2)
+formatScoreOutOfTen(total, max): string    // "—" when max is 0 or total is null
+```
+
+| Input | Output |
+|---|---|
+| `7 / 10` | `7` |
+| `3 / 6` | `5` |
+| `1 / 3` | `3.33` |
+| `0 / 10` | `0` |
+| `5 / 0` | `—` |
+| `null / 10` | `—` |
+
+### A.3 Where it applies
+
+| Surface | Before | After |
+|---|---|---|
+| `student-quiz-result.tsx` score card | `7 / 10 points` | `7 / 10` |
+| `student-quiz-player.tsx` result screen | `21/30` | `7/10` |
+
+Per-question rows keep raw points (`2 / 3`), because a single question's weight
+is meaningful and does not need rescaling. The percentage and pass/fail badge
+are unchanged.
+
+### A.4 Acceptance
+
+1. A 6-point quiz scored 3 shows `5 / 10`.
+2. A 10-point quiz scored 7 shows `7 / 10`.
+3. A quiz with `max_score = 0` shows `— / 10`, not `NaN` or `Infinity`.
+4. Per-question points still read as raw points.
+5. Unit tests cover the conversion and its null cases
+   (`quiz-result-format.test.ts`).

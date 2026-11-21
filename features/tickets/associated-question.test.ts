@@ -23,4 +23,11 @@ describe("associatedQuestion", () => {
       { role: "ai", content: "Answer" },
     ], 1)).toBeNull();
   });
+
+  it("uses the stored original question for a web answer after another answer", () => {
+    expect(associatedQuestion([
+      { role: "ai", content: "Course answer" },
+      { role: "ai", content: "Web answer", originalQuestion: "How do I print Hello World in C++?" },
+    ], 1)).toBe("How do I print Hello World in C++?");
+  });
 });

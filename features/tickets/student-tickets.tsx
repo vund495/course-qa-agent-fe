@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { TicketCitations } from './ticket-citations';
+import { TicketAgentAnswer } from './ticket-agent-answer';
 import { TicketsInboxLayout } from "@/components/shared/TicketsInboxLayout";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
@@ -476,9 +477,7 @@ export function StudentTickets() {
                   <h3 className="text-[11px] font-semibold uppercase tracking-wide text-[#6F6F6F]">
                     AI answer you asked about
                   </h3>
-                  <blockquote className="max-h-44 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-[#E5E5E5] bg-white p-3 text-sm text-[#5A5A5A]">
-                    {selected.agent_answer}
-                  </blockquote>
+                  <TicketAgentAnswer content={selected.agent_answer} sourceMessageId={selected.source_message_id} />
                 </section>
               )}
 

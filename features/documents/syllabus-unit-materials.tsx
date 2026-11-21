@@ -179,18 +179,13 @@ export function SyllabusUnitMaterials({
         unitNumber,
       });
       const failed = outcomes.filter((outcome) => outcome.error !== null);
-      const warned = outcomes.filter(
-        (outcome) => outcome.error === null && outcome.warning !== null,
-      );
       added = outcomes
-        .filter((outcome) => outcome.error === null && outcome.warning === null && outcome.item)
+        .filter((outcome) => outcome.error === null && outcome.item)
         .map((outcome) => outcome.item as DocumentItem);
 
-      const problems = [
-        ...failed.map((outcome) => `${outcome.fileName}: ${outcome.error}`),
-        ...warned.map((outcome) => `${outcome.fileName}: ${outcome.warning}`),
-      ];
-      if (problems.length > 0) setUploadError(problems.join(" "));
+      if (failed.length > 0) {
+        setUploadError(failed.map((outcome) => `${outcome.fileName}: ${outcome.error}`).join(" "));
+      }
       if (added.length > 0) {
         mergeUploadedMaterials(unitNumber, added);
         setUploadNote(

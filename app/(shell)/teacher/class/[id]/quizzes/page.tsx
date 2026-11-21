@@ -1,13 +1,21 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Sparkles, Upload } from "lucide-react";
 import { ClassPageHeader } from "@/components/shared/ClassPageHeader";
 import { Button } from "@/components/ui/button";
 import { QuizList } from "@/features/quizzes/quiz-list";
-import { QuizBlueprintModal } from "@/features/quizzes/quiz-blueprint-modal";
+
+// AI-187: the blueprint dialog is only mounted after the teacher clicks
+// "Generate Quiz", so it does not belong in the route's first-load bundle.
+const QuizBlueprintModal = dynamic(
+  () =>
+    import("@/features/quizzes/quiz-blueprint-modal").then((m) => m.QuizBlueprintModal),
+  { ssr: false },
+);
 
 export default function QuizzesPage() {
   const { id } = useParams<{ id: string }>();

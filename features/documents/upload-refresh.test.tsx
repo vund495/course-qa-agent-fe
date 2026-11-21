@@ -324,7 +324,7 @@ describe("upload refresh behaviour", () => {
     expect(container.textContent).toContain("network down");
   });
 
-  it("surfaces a unit upload warning instead of claiming the file was added", async () => {
+  it("surfaces a unit upload error instead of claiming the file was added", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -335,8 +335,7 @@ describe("upload refresh behaviour", () => {
               {
                 file_name: "unrelated.md",
                 document: null,
-                error: null,
-                warning: "Course relevance: Content does not match this course.",
+                error: "The file is empty.",
               },
             ],
           });
@@ -360,11 +359,11 @@ describe("upload refresh behaviour", () => {
       new File(["note"], "unrelated.md", { type: "text/markdown" }),
     );
 
-    expect(container.textContent).toContain("Content does not match this course.");
+    expect(container.textContent).toContain("The file is empty.");
     expect(container.textContent).not.toContain("Added 1 material");
   });
 
-  it("shows successful files from a mixed warning batch without a reload", async () => {
+  it("shows successful files from a mixed success and error batch without a reload", async () => {
     const refreshed = deferred<Response>();
     let listCalls = 0;
     const uploaded = documentRow({ id: "ok-doc", file_name: "ok.md" });
@@ -380,8 +379,7 @@ describe("upload refresh behaviour", () => {
               {
                 file_name: "warning.md",
                 document: null,
-                error: null,
-                warning: "Course relevance: Content does not match this course.",
+                error: "The file is empty.",
               },
             ],
           });
@@ -515,69 +513,6 @@ describe("upload refresh behaviour", () => {
     expect(doneRow?.textContent).toContain("Pending approval");
     expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(findButton(container, "Uploading…")).toBeUndefined();
-  });
-
-  it("removes the Uploading row and opens the warning modal for a per-file warning", async () => {
-    const post = deferred<Response>();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input);
-        const method = (init?.method ?? "GET").toUpperCase();
-        if (method === "POST" && url.endsWith("/api/documents/")) return post.promise;
-        if (url.includes("/syllabus-units")) return response(syllabus());
-        if (url.includes("status=processing")) {
-          return response({ items: [], total: 0, page: 1, page_size: 1 });
-        }
-        if (method === "GET" && url.includes("/api/documents/?")) {
-          return response({ items: [], total: 0, page: 1, page_size: 10 });
-        }
-        return response({});
-      }),
-    );
-
-    await actAndSettle(() => {
-      root!.render(<ClassMaterials classId="class-1" />);
-    });
-    await actAndSettle(() => {
-      findButton(container, "Import materials")!.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    await chooseFile(
-      uploadInput(container),
-      new File(["note"], "unrelated.md", { type: "text/markdown" }),
-    );
-    await actAndSettle(() => {
-      findButton(container, "Upload for approval")!.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(tableRow(container, "unrelated.md")?.textContent).toContain("Uploading");
-
-    post.resolve(
-      response(
-        {
-          uploaded: [
-            {
-              file_name: "unrelated.md",
-              document: null,
-              error: null,
-              warning: "Course relevance: Content does not match this course.",
-            },
-          ],
-        },
-        201,
-      ),
-    );
-    await actAndSettle(() => Promise.resolve());
-
-    expect(tableRow(container, "unrelated.md")).toBeUndefined();
-    expect(document.body.textContent).toContain("Content does not match this course.");
-    expect(
-      container.querySelector('button[aria-label="Remove unrelated.md"]'),
-    ).not.toBeNull();
-    expect(container.textContent).not.toContain("Upload successful");
   });
 
   it("removes the Uploading row and reports a per-file error without success", async () => {

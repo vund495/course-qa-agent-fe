@@ -7,16 +7,28 @@ import type { AnswerFeedback as Feedback } from './api';
 import { ChatInput } from './chat-input';
 import { ChatScrollArea } from './chat-scroll-area';
 import { SuggestedQuestions } from './suggested-questions';
+import { WebConsentPrompt } from './web-consent-prompt';
+import {
+  applyWebConsentEvent,
+  createWebConsentBubble,
+  upsertMessageById,
+  upsertMessageForSession,
+  type WebConsentBubble,
+} from './consent-stream';
+import {
+  adoptConsentSessionKey,
+  buildStreamTranscript,
+} from './consent-race';
 import { AskTeacherButton } from '@/features/tickets/ask-teacher-button';
 import { associatedQuestion } from '@/features/tickets/associated-question';
 import { useChatStream } from '@/hooks/use-chat-stream';
 import { getSessionDetail } from '@/features/history/api';
-import { getChatQuota, type ChatQuota } from './api';
+import { decideWebConsent, getChatQuota, streamWebConsent, type ChatQuota } from './api';
 import { mapHistoryCitation, mergeCitation, uniqueCitations } from '@/lib/citations';
 import type { ChatMessageItem } from '@/features/history/types';
 import { History, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { ChatCitation, ChatProgressStage } from '@/lib/sse';
+import type { ChatCitation, ChatConsentOffer, ChatProgressStage } from '@/lib/sse';
 
 // Define message type
 type Message = {
@@ -53,6 +65,8 @@ type StreamContext = {
   baseMessages: Message[];
   userMessage: Message;
   answer: Message;
+  /** Web answers accepted while this turn is still the live stream. */
+  webMessages: Message[];
   completed: boolean;
 };
 
@@ -77,7 +91,7 @@ type SelectionAction = {
 };
 
 function transcriptForContext(context: StreamContext): Message[] {
-  return [...context.baseMessages, context.userMessage, context.answer];
+  return buildStreamTranscript(context);
 }
 
 // Initialize chat state
@@ -133,6 +147,11 @@ export function ChatWindow({
   const [quota, setQuota] = React.useState<ChatQuota | null>(null);
   const [isTyping, setIsTyping] = React.useState(false); // Waiting state for the first chunk (to show typing indicator)
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
+  const [pendingConsent, setPendingConsent] = React.useState<ChatConsentOffer | null>(null);
+  const [acceptingConsentId, setAcceptingConsentId] = React.useState<string | null>(null);
+  const [consentBusy, setConsentBusy] = React.useState(false);
+  const [webStreamingId, setWebStreamingId] = React.useState<string | null>(null);
+  const consentControllerRef = React.useRef<AbortController | null>(null);
 
   const refreshQuota = React.useCallback(() => {
     getChatQuota()
@@ -168,6 +187,18 @@ export function ChatWindow({
   React.useEffect(() => {
     currentKeyRef.current = currentKey;
   }, [currentKey]);
+
+  // A class change invalidates the consent stream; unmounting aborts it too so
+  // the backend releases the offer instead of leaving it processing.
+  React.useEffect(() => {
+    consentControllerRef.current?.abort();
+  }, [classId]);
+
+  React.useEffect(() => {
+    return () => {
+      consentControllerRef.current?.abort();
+    };
+  }, []);
 
   // Anchor to reference the bottom of the message list
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -252,6 +283,7 @@ export function ChatWindow({
       }
       const timer = setTimeout(() => {
         setMessages(INITIAL_MESSAGES);
+        setPendingConsent(null);
         setIsLoadingHistory(false);
       }, 0);
       return () => clearTimeout(timer);
@@ -284,6 +316,23 @@ export function ChatWindow({
         }));
 
         setMessages(loaded.length > 0 ? loaded : INITIAL_MESSAGES);
+        setPendingConsent(
+          detail.pending_consent
+            ? {
+                id: detail.pending_consent.id,
+                sessionId: detail.pending_consent.session_id,
+                scopeKind: detail.pending_consent.scope_kind,
+                question: detail.pending_consent.question,
+                queryScope: detail.pending_consent.query_scope,
+                conflictNote: detail.pending_consent.conflict_note ?? null,
+                conflictCitations: (detail.pending_consent.conflict_citations ?? []).map(
+                  mapHistoryCitation,
+                ),
+                expiresAt: detail.pending_consent.expires_at,
+                assistantMessageId: detail.pending_consent.assistant_message_id,
+              }
+            : null,
+        );
       })
       .catch((err) => {
         console.error('Failed to load session history:', err);
@@ -378,6 +427,22 @@ export function ChatWindow({
         ...message,
         suggestedQuestions: questions,
       }));
+    },
+    onConsent: (offer) => {
+      const context = streamContextRef.current;
+      if (!context || currentKeyRef.current !== context.key) return;
+      // The offer is persisted before `done`; adopt the real session now so an
+      // early accept can append to this live transcript instead of being lost.
+      const sessionKey = adoptConsentSessionKey(context.key, offer.sessionId, NEW_CHAT_KEY);
+      if (sessionKey !== context.key) {
+        context.key = sessionKey;
+        context.sessionId = offer.sessionId;
+        currentKeyRef.current = sessionKey;
+        setStreamSnapshot((snapshot) =>
+          snapshot ? { ...snapshot, key: sessionKey, sessionId: offer.sessionId } : snapshot,
+        );
+      }
+      setPendingConsent(offer);
     },
     onDone: (event) => {
       void refreshQuota();
@@ -480,6 +545,9 @@ export function ChatWindow({
       return;
     }
 
+    // A new question supersedes any pending consent offer for this conversation.
+    setPendingConsent(null);
+
     // 1. Append the user message and a pending AI message carrying the trace,
     //    so the reasoning steps are visible while the answer is produced.
     const key = activeSessionId ?? NEW_CHAT_KEY;
@@ -500,6 +568,7 @@ export function ChatWindow({
       baseMessages,
       userMessage: newUserMsg,
       answer: pendingAiMsg,
+      webMessages: [],
       completed: false,
     };
     setStreamSnapshot({
@@ -545,6 +614,7 @@ export function ChatWindow({
       baseMessages,
       userMessage,
       answer: retryAnswer,
+      webMessages: [],
       completed: false,
     };
     setStreamSnapshot({
@@ -558,6 +628,143 @@ export function ChatWindow({
     setIsTyping(true);
     streamActiveRef.current = true;
     sendMessage(failed.retryText);
+  };
+
+  const handleConsentDecline = async () => {
+    const target = pendingConsent;
+    if (!target || consentBusy) return;
+    setConsentBusy(true);
+    try {
+      await decideWebConsent(target.id, 'decline', classId, target.sessionId);
+      setPendingConsent((current) => (current?.id === target.id ? null : current));
+      toast.info('No web search was performed.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update web consent.');
+    } finally {
+      setConsentBusy(false);
+    }
+  };
+
+  const handleConsentAccept = async () => {
+    const target = pendingConsent;
+    if (!target || consentBusy) return;
+    setConsentBusy(true);
+    // Hide only this offer while its request runs; the pending offer is kept so
+    // a failure can show the prompt again and require another click.
+    setAcceptingConsentId(target.id);
+
+    const bubbleId = nextMsgId();
+    const toMessage = (bubble: WebConsentBubble): Message => ({
+      id: bubble.id,
+      role: 'ai',
+      content: bubble.content,
+      citations: bubble.citations,
+      trace: bubble.trace,
+      traceStep: bubble.traceStep,
+      traceCompleted: bubble.traceCompleted,
+      isError: bubble.isError,
+      backendMessageId: bubble.backendMessageId,
+      suggestedQuestions: bubble.suggestedQuestions,
+      canCreateFeedbackTicket: Boolean(bubble.backendMessageId),
+      originalQuestion: target.question,
+    });
+    let bubble = createWebConsentBubble(bubbleId);
+    const updateBubble = (next: WebConsentBubble) => {
+      bubble = next;
+      const message = toMessage(next);
+      const context = streamContextRef.current;
+      if (context && context.key === target.sessionId) {
+        context.webMessages = upsertMessageById(context.webMessages, message);
+      }
+      setMessages((previous) =>
+        upsertMessageForSession(previous, message, {
+          targetSessionId: target.sessionId,
+          currentSessionKey: currentKeyRef.current,
+        }),
+      );
+    };
+
+    // Show the separate web bubble and its Searching step immediately.
+    setWebStreamingId(bubbleId);
+    updateBubble(bubble);
+
+    const controller = new AbortController();
+    consentControllerRef.current = controller;
+    let completed = false;
+    try {
+      const outcome = await streamWebConsent(
+        target.id,
+        classId,
+        target.sessionId,
+        {
+          onProgress: (stage, message) =>
+            updateBubble(
+              applyWebConsentEvent(bubble, { type: 'progress', stage, message }),
+            ),
+          onToken: (text) =>
+            updateBubble(applyWebConsentEvent(bubble, { type: 'token', text })),
+          onRestart: () =>
+            updateBubble(applyWebConsentEvent(bubble, { type: 'restart' })),
+          onCitation: (citation) =>
+            updateBubble(
+              applyWebConsentEvent(bubble, { type: 'citation', citation }),
+            ),
+          onSuggestions: (questions) =>
+            updateBubble(
+              applyWebConsentEvent(bubble, { type: 'suggestions', questions }),
+            ),
+          onDone: (event) => {
+            completed = true;
+            updateBubble(applyWebConsentEvent(bubble, event));
+          },
+        },
+        controller.signal,
+      );
+
+      if (outcome.kind === 'json') {
+        if (!outcome.result.answer) {
+          throw new Error('The web answer was not available.');
+        }
+        completed = true;
+        updateBubble({
+          ...bubble,
+          content: outcome.result.answer,
+          citations: uniqueCitations(
+            (outcome.result.citations ?? []).map(mapHistoryCitation),
+          ),
+          suggestedQuestions:
+            outcome.result.suggested_questions?.length
+              ? outcome.result.suggested_questions
+              : bubble.suggestedQuestions,
+          traceCompleted: true,
+          backendMessageId: outcome.result.assistant_message_id ?? undefined,
+        });
+      }
+
+      if (!completed) {
+        throw new Error('The web answer stream ended unexpectedly.');
+      }
+
+      setPendingConsent((current) => (current?.id === target.id ? null : current));
+      if (currentKeyRef.current === target.sessionId) {
+        toast.success('Web search answer added separately below.');
+      } else {
+        toast.info('The web answer will appear when you return to that conversation.');
+      }
+    } catch (error) {
+      if (controller.signal.aborted || completed) return;
+      const message =
+        error instanceof Error ? error.message : 'Web search could not be completed.';
+      updateBubble(applyWebConsentEvent(bubble, { type: 'error', message }));
+      toast.error(message);
+    } finally {
+      if (consentControllerRef.current === controller) {
+        consentControllerRef.current = null;
+      }
+      setWebStreamingId((current) => (current === bubbleId ? null : current));
+      setAcceptingConsentId((current) => (current === target.id ? null : current));
+      setConsentBusy(false);
+    }
   };
 
   const backgroundStream =
@@ -691,7 +898,9 @@ export function ChatWindow({
                 </div>
               ) : (
                 messages.map((msg, index) => {
-                  const isMessageStreaming = isStreaming && msg.id === activeStreamAnswerId;
+                  const isMessageStreaming =
+                    (isStreaming && msg.id === activeStreamAnswerId) ||
+                    msg.id === webStreamingId;
                   const isMessagePending = isTyping && msg.id === activeStreamAnswerId;
                   const ticketQuestion = canOpenTicket && msg.role === 'ai' && !msg.isError &&
                     !isMessageStreaming && !isMessagePending
@@ -756,6 +965,17 @@ export function ChatWindow({
                   />
               )}
 
+              {pendingConsent && pendingConsent.id !== acceptingConsentId && (
+                <div className="mb-3">
+                  <WebConsentPrompt
+                    offer={pendingConsent}
+                    busy={consentBusy}
+                    onAccept={handleConsentAccept}
+                    onDecline={handleConsentDecline}
+                  />
+                </div>
+              )}
+
               {/* Empty div serving as an anchor for scrollIntoView */}
               <div className="h-20" aria-hidden="true" />
               <div ref={messagesEndRef} />
@@ -764,7 +984,7 @@ export function ChatWindow({
 
           {/* Full-width fade from the composer down, no side-edge fade. */}
           <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-gradient-to-t from-white via-white/80 to-transparent"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-14 bg-gradient-to-t from-white to-transparent"
             aria-hidden="true"
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
