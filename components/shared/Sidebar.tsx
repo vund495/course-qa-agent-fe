@@ -21,6 +21,7 @@ import {
   CalendarDays,
   CalendarCheck,
   Ticket,
+  Layers,
 } from "lucide-react";
 import { Role, settingsHrefForRole } from "@/components/ui/nav-config";
 import { useAuth } from "@/components/ui/auth-guard";
@@ -190,6 +191,14 @@ export function SidebarNavBody({
               >
                 <BookOpen className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>Classes</span>}
+              </Link>
+              <Link
+                href="/admin/skills"
+                title="Skill Taxonomy"
+                className={linkCls(pathname.startsWith("/admin/skills"))}
+              >
+                <Layers className="h-4 w-4 shrink-0" />
+                {!collapsed && <span>Skill Taxonomy</span>}
               </Link>
               <Link
                 href="/admin/tickets/queue"

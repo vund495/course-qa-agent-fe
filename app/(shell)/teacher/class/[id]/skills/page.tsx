@@ -2,23 +2,23 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { Skill, SkillLevel, skillApi } from "@/lib/skill-api";
 import {
-  Layers,
-  Sparkles,
-  Award,
-  AlertCircle,
-  CheckCircle2,
+  Skill,
+  SkillTreeGroup,
+  skillApi,
+} from "@/lib/skill-api";
+import {
+  Plus,
+  Trash2,
   ChevronDown,
   ChevronRight,
-  Plus,
-  Save,
-  HelpCircle,
+  X,
+  Filter,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
-import { Reveal, SkeletonCard, SkeletonLine } from "@/components/shared/page-skeleton";
 import { ClassPageHeader } from "@/components/shared/ClassPageHeader";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -28,607 +28,701 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-
-const PROFICIENCY_LEVELS: {
-  level: SkillLevel;
-  name: string;
-  badgeClass: string;
-  defaultThreshold: number;
-}[] = [
-  {
-    level: "NOVICE",
-    name: "Novice",
-    badgeClass: "bg-muted text-foreground border-border",
-    defaultThreshold: 80,
-  },
-  {
-    level: "BEGINNER",
-    name: "Beginner",
-    badgeClass: "bg-[var(--brand-soft)] text-[var(--brand-ink)] border-[var(--brand-line)]",
-    defaultThreshold: 75,
-  },
-  {
-    level: "COMPETENT",
-    name: "Competent",
-    badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    defaultThreshold: 70,
-  },
-  {
-    level: "PROFICIENT",
-    name: "Proficient",
-    badgeClass: "bg-muted text-foreground border-border",
-    defaultThreshold: 65,
-  },
-  {
-    level: "MASTER",
-    name: "Master",
-    badgeClass: "bg-muted text-foreground border-border",
-    defaultThreshold: 60,
-  },
-];
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { ViewSkillInfoModal } from "@/components/skills/ViewSkillInfoModal";
 
 export default function TeacherClassSkillsPage() {
   const params = useParams();
   const classId = params.id as string;
 
+  // Class Assigned Skills State
   const [skills, setSkills] = React.useState<Skill[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [selectedSkillId, setSelectedSkillId] = React.useState<string | null>(null);
-  const [expandedLevels, setExpandedLevels] = React.useState<Record<string, boolean>>({
-    NOVICE: true,
-    BEGINNER: true,
-    COMPETENT: true,
-    PROFICIENT: true,
-    MASTER: true,
-  });
 
-  // Edit / draft states for rubric descriptions & thresholds
-  const [rubricDrafts, setRubricDrafts] = React.useState<
-    Record<string, { description: string; threshold_pct: number }>
-  >({});
-  const [savingLevel, setSavingLevel] = React.useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = React.useState<string | null>(null);
+  // Search & Filter on Main Table
+  const [search, setSearch] = React.useState("");
+  const [selectedDomainFilter, setSelectedDomainFilter] = React.useState<string>("ALL");
 
-  // New Skill Modal
-  const [isCreatingSkill, setIsCreatingSkill] = React.useState(false);
-  const [newSkillCode, setNewSkillCode] = React.useState("");
-  const [newSkillName, setNewSkillName] = React.useState("");
-  const [newSkillCategory, setNewSkillCategory] = React.useState("PYTHON");
-  const [newSkillDesc, setNewSkillDesc] = React.useState("");
-  const [createLoading, setCreateLoading] = React.useState(false);
+  // Full Skill Information Modal State
+  const [modalSkill, setModalSkill] = React.useState<Skill | null>(null);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
 
-  // Auto-generation State
-  const [generatingSkills, setGeneratingSkills] = React.useState(false);
-  const [isConfirmingGenerate, setIsConfirmingGenerate] = React.useState(false);
+  // Add Skill Catalog Modal State
+  const [isCatalogOpen, setIsCatalogOpen] = React.useState(false);
+  const [catalogGroups, setCatalogGroups] = React.useState<SkillTreeGroup[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = React.useState(false);
+  const [catalogSearch, setCatalogSearch] = React.useState("");
+  const [expandedGroupIds, setExpandedGroupIds] = React.useState<Set<string>>(new Set());
+  const [selectedCatalogIds, setSelectedCatalogIds] = React.useState<Set<string>>(new Set());
+  const [assigningLoading, setAssigningLoading] = React.useState(false);
 
-  const handleAutoGenerateSkills = async () => {
-    if (!classId) return;
-    setIsConfirmingGenerate(false);
+  // Unassign Confirm Dialog
+  const [skillToUnassign, setSkillToUnassign] = React.useState<Skill | null>(null);
+  const [unassigningLoading, setUnassigningLoading] = React.useState(false);
 
-    try {
-      setGeneratingSkills(true);
-      setError(null);
-      const generated = await skillApi.autoGenerateSkills(classId);
-      setSkills(generated);
-      if (generated.length > 0) {
-        setSelectedSkillId(generated[0].id);
-      }
-      setSaveSuccess(`Successfully generated ${generated.length} skills with rubrics!`);
-      setTimeout(() => setSaveSuccess(null), 4000);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate skills.");
-    } finally {
-      setGeneratingSkills(false);
-    }
-  };
-
-  const fetchSkills = React.useCallback(async () => {
+  // Load Class Skills
+  const fetchClassSkills = React.useCallback(async () => {
     if (!classId) return;
     try {
+      setLoading(true);
       setError(null);
       const data = await skillApi.listClassSkills(classId);
       setSkills(data);
-      setSelectedSkillId((prev) => prev ?? data[0]?.id ?? null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load skills.");
+      setError(err instanceof Error ? err.message : "Failed to load class skills.");
     } finally {
       setLoading(false);
     }
   }, [classId]);
 
   React.useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch; state is only set after the await.
-    void fetchSkills();
-  }, [fetchSkills]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch
+    void fetchClassSkills();
+  }, [fetchClassSkills]);
 
-  const selectedSkill = React.useMemo(() => {
-    return skills.find((s) => s.id === selectedSkillId) || skills[0] || null;
-  }, [skills, selectedSkillId]);
-
-  // Sync drafts when selected skill changes
-  const activeDrafts = React.useMemo(() => {
-    if (!selectedSkill) return {};
-    const drafts: Record<string, { description: string; threshold_pct: number }> = {};
-    for (const p of PROFICIENCY_LEVELS) {
-      const existing = selectedSkill.rubrics?.find((r) => r.level === p.level);
-      drafts[p.level] = {
-        description: existing?.description || "",
-        threshold_pct: existing?.threshold_pct || p.defaultThreshold,
-      };
+  // Open Catalog Modal & Fetch Global Taxonomy
+  const handleOpenCatalog = async () => {
+    setIsCatalogOpen(true);
+    setSelectedCatalogIds(new Set());
+    setCatalogSearch("");
+    setExpandedGroupIds(new Set()); // Keep all topics collapsed initially as requested
+    try {
+      setLoadingCatalog(true);
+      const tree = await skillApi.getCatalogTree();
+      setCatalogGroups(tree);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load skills catalog.");
+    } finally {
+      setLoadingCatalog(false);
     }
-    return drafts;
-  }, [selectedSkill]);
-
-  const currentRubricDrafts = { ...activeDrafts, ...rubricDrafts };
-
-  const handleRubricChange = (
-    level: SkillLevel,
-    field: "description" | "threshold_pct",
-    val: string | number
-  ) => {
-    setRubricDrafts((prev) => ({
-      ...prev,
-      [level]: {
-        description:
-          field === "description"
-            ? (val as string)
-            : prev[level]?.description ?? activeDrafts[level]?.description ?? "",
-        threshold_pct:
-          field === "threshold_pct"
-            ? (val as number)
-            : prev[level]?.threshold_pct ?? activeDrafts[level]?.threshold_pct ?? 70,
-      },
-    }));
   };
 
-  const handleSaveRubric = async (level: SkillLevel) => {
-    if (!selectedSkill || !classId) return;
-    const draft = currentRubricDrafts[level];
-    if (!draft || !draft.description.trim()) {
-      toast.error("Please provide the evaluation scope description for this level.");
+  // Toggle Dropdown for a Topic in the Catalog Modal
+  const toggleGroupExpand = (groupId: string) => {
+    setExpandedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  // Toggle skill selection in catalog
+  const toggleSelectSkill = (skillId: string) => {
+    setSelectedCatalogIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(skillId)) {
+        next.delete(skillId);
+      } else {
+        next.add(skillId);
+      }
+      return next;
+    });
+  };
+
+  // Select/Deselect All available skills in a topic group
+  const toggleSelectAllInGroup = (group: SkillTreeGroup) => {
+    const assignedIds = new Set(skills.map((s) => s.id));
+    const availableSkills = group.skills.filter((s) => !assignedIds.has(s.id));
+    if (availableSkills.length === 0) return;
+
+    const allSelected = availableSkills.every((s) => selectedCatalogIds.has(s.id));
+    setSelectedCatalogIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        availableSkills.forEach((s) => next.delete(s.id));
+      } else {
+        availableSkills.forEach((s) => next.add(s.id));
+      }
+      return next;
+    });
+  };
+
+  // Assign selected skills to class
+  const handleAssignSkills = async () => {
+    if (selectedCatalogIds.size === 0) {
+      toast.error("Please select at least one skill to add");
       return;
     }
-
     try {
-      setSavingLevel(level);
-      await skillApi.updateClassRubric(classId, selectedSkill.id, level, {
-        description: draft.description.trim(),
-        threshold_pct: draft.threshold_pct,
-      });
-      setSaveSuccess(`Saved rubric for ${level}!`);
-      setTimeout(() => setSaveSuccess(null), 3000);
-      await fetchSkills();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to save rubric.");
+      setAssigningLoading(true);
+      const updated = await skillApi.assignSkillsToClass(classId, Array.from(selectedCatalogIds));
+      setSkills(updated);
+      toast.success(`Added ${selectedCatalogIds.size} skill(s) to this class`);
+      setIsCatalogOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add skills to class");
     } finally {
-      setSavingLevel(null);
+      setAssigningLoading(false);
     }
   };
 
-  const handleCreateSkill = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSkillCode.trim() || !newSkillName.trim()) {
-      toast.error("Skill code and name are required.");
-      return;
-    }
-
+  // Unassign skill from class
+  const handleConfirmUnassign = async () => {
+    if (!skillToUnassign) return;
     try {
-      setCreateLoading(true);
-      const created = await skillApi.createClassSkill(classId, {
-        code: newSkillCode.trim(),
-        name: newSkillName.trim(),
-        category: newSkillCategory.trim() || "GENERAL",
-        description: newSkillDesc.trim() || undefined,
-        rubrics: PROFICIENCY_LEVELS.map((p) => ({
-          level: p.level,
-          description: `Assessment of ${p.name} level understanding for ${newSkillName.trim()}`,
-          threshold_pct: p.defaultThreshold,
-        })),
-      });
-      setIsCreatingSkill(false);
-      setNewSkillCode("");
-      setNewSkillName("");
-      setNewSkillDesc("");
-      await fetchSkills();
-      setSelectedSkillId(created.id);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to create skill.");
+      setUnassigningLoading(true);
+      await skillApi.unassignSkillFromClass(classId, skillToUnassign.id);
+      toast.success(`Removed "${skillToUnassign.name}" from class`);
+      setSkillToUnassign(null);
+      await fetchClassSkills();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove skill");
     } finally {
-      setCreateLoading(false);
+      setUnassigningLoading(false);
     }
   };
+
+  // Extract unique domains for filter dropdown
+  const domainOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    skills.forEach((s) => {
+      if (s.domain) set.add(s.domain);
+    });
+    return Array.from(set).sort();
+  }, [skills]);
+
+  // Filtered & Numerically Sorted Assigned Skills (matching Admin table layout)
+  const filteredSkills = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const list = skills.filter((s) => {
+      const matchesDomain =
+        selectedDomainFilter === "ALL" || s.domain === selectedDomainFilter;
+      if (!matchesDomain) return false;
+
+      if (!term) return true;
+      return (
+        s.name.toLowerCase().includes(term) ||
+        s.code.toLowerCase().includes(term) ||
+        (s.display_id && s.display_id.toLowerCase().includes(term)) ||
+        (s.domain && s.domain.toLowerCase().includes(term)) ||
+        (s.sub_domain && s.sub_domain.toLowerCase().includes(term)) ||
+        (s.skill_family && s.skill_family.toLowerCase().includes(term)) ||
+        (s.classification && s.classification.toLowerCase().includes(term))
+      );
+    });
+
+    return list.sort((a, b) => {
+      const numA = parseInt(a.display_id || "0", 10);
+      const numB = parseInt(b.display_id || "0", 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+        return numA - numB;
+      }
+      return (a.display_id || "").localeCompare(b.display_id || "");
+    });
+  }, [skills, search, selectedDomainFilter]);
+
+  // Filter Catalog Groups by Search in Add Skill Modal
+  const filteredCatalogGroups = React.useMemo(() => {
+    const term = catalogSearch.trim().toLowerCase();
+    if (!term) return catalogGroups;
+    return catalogGroups
+      .map((g) => {
+        const matchesGroup =
+          g.name.toLowerCase().includes(term) || g.code.toLowerCase().includes(term);
+        const matchingSkills = g.skills.filter(
+          (s) =>
+            s.name.toLowerCase().includes(term) ||
+            s.code.toLowerCase().includes(term) ||
+            (s.display_id && s.display_id.toLowerCase().includes(term)) ||
+            (s.domain && s.domain.toLowerCase().includes(term)) ||
+            (s.sub_domain && s.sub_domain.toLowerCase().includes(term)) ||
+            (s.skill_family && s.skill_family.toLowerCase().includes(term)) ||
+            (s.description && s.description.toLowerCase().includes(term))
+        );
+        if (matchesGroup) return g;
+        if (matchingSkills.length > 0) return { ...g, skills: matchingSkills };
+        return null;
+      })
+      .filter((g): g is SkillTreeGroup => g !== null);
+  }, [catalogGroups, catalogSearch]);
+
+  // Assigned Skill IDs Set for fast lookup
+  const assignedSkillIds = React.useMemo(() => {
+    return new Set(skills.map((s) => s.id));
+  }, [skills]);
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="space-y-6">
+      {/* Workspace Header with concise "Add Skill" button */}
       <ClassPageHeader
-        title="Skills & Evaluation Rubrics"
-        subtitle="Define the skills tested in your quizzes and what each of the 5 mastery levels expects, from Novice to Master."
-        badge={
-          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-[#E5EFF8]">
-            Class Scoped
-          </span>
-        }
+        title="Class Skills & Competencies"
+        subtitle="Manage the standardized competencies assigned to this course for question classification and evaluation."
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="brand"
-              onClick={() => setIsConfirmingGenerate(true)}
-              disabled={generatingSkills}
-              className="h-9 gap-1.5 px-3.5"
-            >
-              <Sparkles className={`h-4 w-4 ${generatingSkills ? "animate-spin" : ""}`} />
-              {generatingSkills ? "Synthesizing Rubrics..." : "Auto-generate Skills"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsCreatingSkill(true)}
-              className="h-9 gap-1.5 border-white/25 bg-transparent px-3.5 text-white hover:bg-white/10 hover:text-white"
-            >
-              <Plus className="h-4 w-4" />
-              Add Skill
-            </Button>
-          </div>
+          <Button
+            onClick={handleOpenCatalog}
+            className="flex items-center gap-1.5 bg-[#111111] hover:bg-black text-white text-xs px-3.5 py-2 font-semibold shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Skill</span>
+          </Button>
         }
       />
 
       {error && (
-        <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <span className="text-sm">{error}</span>
+        <div className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl flex items-center gap-3">
+          <p className="text-sm font-medium">{error}</p>
         </div>
       )}
 
-      {/* Main Content Layout — both columns stretch to the same height so an
-          empty right panel never leaves the left card short. */}
-      <div className="-mx-6 flex flex-1 flex-col gap-6 border-x border-b border-[#DADADA] bg-white p-5 md:p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1">
-        {/* Left Column: Skill Navigation */}
-        <div className="lg:col-span-4 rounded-xl border border-border shadow-xs p-4 flex flex-col min-h-[420px]">
-          <div className="flex items-center justify-between pb-3 border-b border-hairline mb-3">
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-muted-foreground" />
-              Course Skills ({skills.length})
-            </h2>
+      {/* Main View: Sub-Skills Table Layout matching Admin */}
+      <div className="space-y-4">
+        {/* Search & Filter Toolbar: Wide horizontal search without logo */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="relative w-full sm:flex-1 sm:max-w-3xl">
+            <input
+              type="text"
+              placeholder="Search assigned skills by name, ID, domain, family..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-lg px-3.5 pr-8 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-xs"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          {loading ? (
-            <div className="space-y-2" aria-hidden>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-lg border border-border p-3">
-                  <SkeletonLine className="h-4 w-16" />
-                  <SkeletonLine className="mt-2 h-4 w-3/4" />
-                  <SkeletonLine className="mt-1.5 h-3 w-full" />
-                </div>
-              ))}
-            </div>
-          ) : skills.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-2 py-8 text-center">
-              <EmptyState
-                icon={Layers}
-                title="No skills defined for this course yet."
-                description="Generate a 5-level rubric from the course description, or add a skill by hand."
-                className="border-0 px-0 py-0"
-              />
-              <div className="mt-4 flex w-full flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="brand"
-                  onClick={() => setIsConfirmingGenerate(true)}
-                  disabled={generatingSkills}
-                  size="sm"
-                  className="w-full"
+          <div className="flex items-center gap-2">
+            {domainOptions.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-700 shadow-xs">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-slate-500">Domain:</span>
+                <select
+                  value={selectedDomainFilter}
+                  onChange={(e) => setSelectedDomainFilter(e.target.value)}
+                  className="bg-transparent border-none text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                 >
-                  <Sparkles className={`w-3.5 h-3.5 ${generatingSkills ? "animate-spin" : ""}`} />
-                  {generatingSkills ? "Synthesizing..." : "Auto-generate 5-Level Rubrics"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsCreatingSkill(true)}
-                  className="w-full"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Create manually
-                </Button>
+                  <option value="ALL">All Domains ({skills.length})</option>
+                  {domainOptions.map((dom) => (
+                    <option key={dom} value={dom}>
+                      {dom}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {skills.map((s) => {
-                const isSelected = selectedSkill?.id === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => setSelectedSkillId(s.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition ${
-                      isSelected
-                        ? "bg-[var(--brand-soft)] border-[var(--brand-line)] text-[var(--brand-ink)] font-medium shadow-xs"
-                        : "bg-white border-border text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-muted text-foreground">
-                        {s.code}
-                      </span>
-                      <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                        {s.category}
-                      </span>
-                    </div>
-                    <div className="text-sm font-semibold mt-1.5 line-clamp-1">{s.name}</div>
-                    {s.description && (
-                      <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{s.description}</div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            )}
+            <span className="text-xs text-slate-500 font-medium">
+              Total: <strong>{filteredSkills.length}</strong> skills
+            </span>
+          </div>
         </div>
 
-        {/* Right Column: Skill Detail & 5-Level Rubrics */}
-        <div className="lg:col-span-8 flex flex-col min-h-[420px]">
+        {/* Assigned Skills Table matching Admin Sub-Skills Layout */}
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
           {loading ? (
-            <SkeletonCard className="h-full min-h-[420px]" />
-          ) : selectedSkill ? (
-            <Reveal className="space-y-6">
-              {/* Skill Header */}
-              <div className="bg-white rounded-xl border border-border shadow-xs p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-muted text-foreground border border-border">
-                      {selectedSkill.code}
-                    </span>
-                    <h2 className="text-xl font-bold text-foreground">{selectedSkill.name}</h2>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground">
-                    Category: {selectedSkill.category}
-                  </span>
-                </div>
-                {selectedSkill.description && (
-                  <p className="text-sm text-muted-foreground mt-3">{selectedSkill.description}</p>
-                )}
-              </div>
-
-              {saveSuccess && (
-                <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  {saveSuccess}
-                </div>
+            <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              Loading class skills...
+            </div>
+          ) : filteredSkills.length === 0 ? (
+            <div className="p-12 text-center">
+              <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                {search || selectedDomainFilter !== "ALL"
+                  ? "No matching skills found"
+                  : "No skills added to this class yet"}
+              </h3>
+              <p className="text-xs text-slate-500 mb-4 max-w-md mx-auto">
+                {search || selectedDomainFilter !== "ALL"
+                  ? "Try adjusting your search query or domain filter."
+                  : "Choose standardized skills from the catalog to configure competencies and evaluation rubrics for this class."}
+              </p>
+              {!search && selectedDomainFilter === "ALL" && (
+                <Button
+                  onClick={handleOpenCatalog}
+                  className="flex items-center gap-1.5 bg-[#111111] hover:bg-black text-white text-xs px-3.5 py-2 mx-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Skill</span>
+                </Button>
               )}
-
-              {/* 5-Level Rubric Accordions */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                    <Award className="w-4 h-4 text-[var(--brand)]" />
-                    Proficiency Rubrics (Novice to Master)
-                  </h3>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <HelpCircle className="w-3.5 h-3.5" />
-                    Threshold: % correct required to pass level gate
-                  </div>
-                </div>
-
-                {PROFICIENCY_LEVELS.map((p) => {
-                  const isExpanded = expandedLevels[p.level] ?? true;
-                  const draft = currentRubricDrafts[p.level] || {
-                    description: "",
-                    threshold_pct: p.defaultThreshold,
-                  };
-                  const isSaving = savingLevel === p.level;
-
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-white border-b border-slate-200 text-slate-700 font-semibold">
+                <tr>
+                  <th className="py-3.5 px-4 w-20">ID</th>
+                  <th className="py-3.5 px-4">Domain</th>
+                  <th className="py-3.5 px-4">Sub-domain</th>
+                  <th className="py-3.5 px-4">Skill Family</th>
+                  <th className="py-3.5 px-4">Skill (Display) Name</th>
+                  <th className="py-3.5 px-4">Skill Classification</th>
+                  <th className="py-3.5 px-4 text-right pr-6 w-28">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredSkills.map((skill, index) => {
+                  const displayId = skill.display_id || String(index + 1);
                   return (
-                    <div
-                      key={p.level}
-                      className="bg-white rounded-xl border border-border shadow-xs overflow-hidden"
+                    <tr
+                      key={skill.id}
+                      onClick={() => {
+                        setModalSkill(skill);
+                        setIsModalOpen(true);
+                      }}
+                      className="hover:bg-slate-50 cursor-pointer transition-colors group"
                     >
-                      {/* Accordion Header */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedLevels((prev) => ({
-                            ...prev,
-                            [p.level]: !prev[p.level],
-                          }))
-                        }
-                        className="w-full px-5 py-4 flex items-center justify-between bg-muted/50 hover:bg-muted transition border-b border-hairline"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`px-2.5 py-1 rounded text-xs font-bold border ${p.badgeClass}`}
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                        {displayId}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700">
+                        {skill.domain || "Information Technology"}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700">
+                        {skill.sub_domain || "Software Engineering"}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700">
+                        {skill.skill_family || "Programming Languages"}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                        {skill.name}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {skill.classification === "Tool" ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                            Tool
+                          </span>
+                        ) : skill.classification === "Functional Skill" ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                            Functional Skill
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200/80">
+                            {skill.classification || "Technical Skill"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right pr-6">
+                        <div
+                          className="flex items-center justify-end gap-3"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalSkill(skill);
+                              setIsModalOpen(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 font-semibold text-xs"
                           >
-                            {p.level}
-                          </span>
-                          <span className="text-sm font-semibold text-foreground">{p.name} Level</span>
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSkillToUnassign(skill)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                            title="Remove from class"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Passing: <strong className="text-foreground">{draft.threshold_pct}%</strong>
-                          </span>
-                          {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Accordion Content */}
-                      {isExpanded && (
-                        <div className="p-5 space-y-4">
-                          <div>
-                            <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1.5">
-                              Tested Understanding / Evaluation Scope
-                            </label>
-                            <p className="text-xs text-muted-foreground mb-2">
-                              Describe what knowledge depth or comprehension level is tested for this
-                              skill at the {p.name} level.
-                            </p>
-                            <textarea
-                              rows={3}
-                              value={draft.description}
-                              onChange={(e) =>
-                                handleRubricChange(p.level, "description", e.target.value)
-                              }
-                              placeholder={`e.g. Can recognize and explain basic syntax, keywords, and simple rules of ${selectedSkill.name}.`}
-                              className="w-full text-sm rounded-lg border border-input p-3 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)] bg-white"
-                            />
-                          </div>
-
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-hairline">
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs font-semibold text-muted-foreground">
-                                Pass Threshold:
-                              </label>
-                              <input
-                                type="number"
-                                min={1}
-                                max={100}
-                                value={draft.threshold_pct}
-                                onChange={(e) =>
-                                  handleRubricChange(
-                                    p.level,
-                                    "threshold_pct",
-                                    parseInt(e.target.value, 10) || 70
-                                  )
-                                }
-                                className="w-20 text-sm font-semibold text-center rounded border border-input py-1 px-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30"
-                              />
-                              <span className="text-xs text-muted-foreground">%</span>
-                            </div>
-
-                            <Button
-                              type="button"
-                              variant="brand"
-                              size="sm"
-                              disabled={isSaving}
-                              onClick={() => handleSaveRubric(p.level)}
-                            >
-                              <Save className="w-3.5 h-3.5" />
-                              {isSaving ? "Saving..." : `Save ${p.name} Rubric`}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </td>
+                    </tr>
                   );
                 })}
-              </div>
-            </Reveal>
-          ) : (
-            <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-white p-12 text-center text-sm text-muted-foreground">
-              Select or create a skill to view and configure its rubrics.
-            </div>
+              </tbody>
+            </table>
           )}
         </div>
       </div>
-      </div>
 
-      {/* New Skill Modal */}
-      {isCreatingSkill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
-            <h2 className="text-lg font-bold text-foreground mb-1">Add Course Skill</h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Add a skill domain tailored for your course syllabus and quiz evaluation.
-            </p>
-
-            <form onSubmit={handleCreateSkill} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
-                  Skill Code *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. PY-CONTROL-FLOW"
-                  value={newSkillCode}
-                  onChange={(e) => setNewSkillCode(e.target.value.toUpperCase())}
-                  className="w-full text-sm rounded-lg border border-input px-3 py-2 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
-                  Skill Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Python Control Flow & Loops"
-                  value={newSkillName}
-                  onChange={(e) => setNewSkillName(e.target.value)}
-                  className="w-full text-sm rounded-lg border border-input px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. PYTHON"
-                  value={newSkillCategory}
-                  onChange={(e) => setNewSkillCategory(e.target.value.toUpperCase())}
-                  className="w-full text-sm rounded-lg border border-input px-3 py-2 uppercase focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">
-                  Description
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Optional brief description of what this skill covers..."
-                  value={newSkillDesc}
-                  onChange={(e) => setNewSkillDesc(e.target.value)}
-                  className="w-full text-sm rounded-lg border border-input px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 focus:border-[var(--brand)]"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setIsCreatingSkill(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" variant="brand" disabled={createLoading}>
-                  {createLoading ? "Creating..." : "Create Skill"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <Dialog open={isConfirmingGenerate} onOpenChange={setIsConfirmingGenerate}>
-        <DialogContent className="sm:max-w-md">
+      {/* ============================================================ */}
+      {/* DIALOG: Choose Skills from Catalog with Topic Dropdowns      */}
+      {/* ============================================================ */}
+      <Dialog open={isCatalogOpen} onOpenChange={setIsCatalogOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-5xl md:max-w-6xl lg:max-w-7xl max-h-[88vh] flex flex-col p-6">
           <DialogHeader>
-            <DialogTitle>Generate skills and rubrics</DialogTitle>
-            <DialogDescription>
-              Synthesize a 5-level skill taxonomy and rubrics from this course&apos;s description and
-              metadata? Existing skills stay as they are; the generated ones are added alongside them.
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Add Skills to Class
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Browse topics and dropdown to select specific sub-skills to include in this course.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsConfirmingGenerate(false)}>
-              Cancel
-            </Button>
-            <Button type="button" variant="brand" onClick={() => void handleAutoGenerateSkills()}>
-              <Sparkles className="w-4 h-4" />
-              Generate
-            </Button>
+
+          {/* Search Box inside Dialog */}
+          <div className="relative mt-2">
+            <input
+              type="text"
+              placeholder="Search skills or topics by name, ID, domain..."
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              className="w-full px-3.5 pr-8 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white"
+            />
+            {catalogSearch && (
+              <button
+                type="button"
+                onClick={() => setCatalogSearch("")}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Topics Accordion List */}
+          <div className="flex-1 overflow-y-auto mt-3 space-y-3 pr-1">
+            {loadingCatalog ? (
+              <div className="p-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                Loading topics & skills...
+              </div>
+            ) : filteredCatalogGroups.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-500">
+                No matching skills found in catalog.
+              </div>
+            ) : (
+              filteredCatalogGroups.map((group) => {
+                const isSearchActive = catalogSearch.trim().length > 0;
+                // Auto-expand if searching, otherwise obey user toggle state
+                const isExpanded = isSearchActive || expandedGroupIds.has(group.id);
+
+                const totalSkills = group.skills.length;
+                const assignedCount = group.skills.filter((s) => assignedSkillIds.has(s.id)).length;
+                const newlySelectedCount = group.skills.filter((s) => selectedCatalogIds.has(s.id)).length;
+                const availableSkills = group.skills.filter((s) => !assignedSkillIds.has(s.id));
+                const allAvailableSelected =
+                  availableSkills.length > 0 &&
+                  availableSkills.every((s) => selectedCatalogIds.has(s.id));
+
+                return (
+                  <div
+                    key={group.id}
+                    className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs transition-all"
+                  >
+                    {/* Topic Header: Click to dropdown */}
+                    <div
+                      onClick={() => toggleGroupExpand(group.id)}
+                      className="px-4 py-3 bg-slate-50/80 hover:bg-slate-100/70 border-b border-slate-200 flex items-center justify-between cursor-pointer select-none transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <button
+                          type="button"
+                          className="text-slate-400 hover:text-slate-600 transition-transform"
+                          aria-label="Toggle group"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-blue-600" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-slate-500" />
+                          )}
+                        </button>
+
+                        <div className="min-w-0">
+                          <h4 className="text-[14px] font-bold text-slate-900 truncate">
+                            {group.name}
+                          </h4>
+                          {group.description && (
+                            <p className="text-[11.5px] text-slate-500 line-clamp-1 mt-0.5">
+                              {group.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        {assignedCount > 0 && (
+                          <span className="px-2 py-0.5 rounded text-[10.5px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {assignedCount} in class
+                          </span>
+                        )}
+                        {newlySelectedCount > 0 && (
+                          <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            +{newlySelectedCount} selected
+                          </span>
+                        )}
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {totalSkills} skills
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dropdown Content: Revealed only when clicked / expanded */}
+                    {isExpanded && (
+                      <div className="bg-white">
+                        {/* Sub-header with Select All option */}
+                        {availableSkills.length > 1 && (
+                          <div className="px-4 py-2 bg-slate-50/40 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                            <span>
+                              {availableSkills.length} available to add
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleSelectAllInGroup(group);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 font-semibold text-[11.5px]"
+                            >
+                              {allAvailableSelected
+                                ? "Deselect All Available"
+                                : "Select All Available"}
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="divide-y divide-slate-100">
+                          {group.skills.map((sk) => {
+                            const isAlreadyAssigned = assignedSkillIds.has(sk.id);
+                            const isSelected = selectedCatalogIds.has(sk.id);
+
+                            return (
+                              <div
+                                key={sk.id}
+                                onClick={() => {
+                                  if (!isAlreadyAssigned) toggleSelectSkill(sk.id);
+                                }}
+                                className={`p-3 px-4 flex items-center gap-3 transition-colors ${
+                                  isAlreadyAssigned
+                                    ? "bg-slate-50/60 opacity-60 cursor-not-allowed"
+                                    : isSelected
+                                    ? "bg-blue-50/50 cursor-pointer"
+                                    : "hover:bg-slate-50/70 cursor-pointer"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isAlreadyAssigned || isSelected}
+                                  disabled={isAlreadyAssigned}
+                                  onChange={() => {
+                                    if (!isAlreadyAssigned) toggleSelectSkill(sk.id);
+                                  }}
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                                />
+
+                                <span className="font-mono text-[11px] font-bold text-slate-800 w-16 shrink-0">
+                                  {sk.display_id || sk.code}
+                                </span>
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h5 className="text-xs font-semibold text-slate-900 truncate">
+                                      {sk.name}
+                                    </h5>
+                                    {isAlreadyAssigned ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded font-medium">
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        In Class
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                                    {sk.sub_domain && (
+                                      <span>{sk.sub_domain}</span>
+                                    )}
+                                    {sk.sub_domain && sk.skill_family && (
+                                      <span>&bull;</span>
+                                    )}
+                                    {sk.skill_family && (
+                                      <span>{sk.skill_family}</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="shrink-0 flex items-center gap-2">
+                                  {sk.classification === "Tool" ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                                      Tool
+                                    </span>
+                                  ) : sk.classification === "Functional Skill" ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                                      Functional Skill
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-blue-50 text-blue-800 border border-blue-200/80">
+                                      {sk.classification || "Technical Skill"}
+                                    </span>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setModalSkill(sk);
+                                      setIsModalOpen(true);
+                                    }}
+                                    className="text-xs text-slate-400 hover:text-blue-600 p-1"
+                                    title="View Skill Information"
+                                  >
+                                    View
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
+            <span className="text-xs text-slate-500">
+              Selected: <strong>{selectedCatalogIds.size}</strong> new skill(s)
+            </span>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCatalogOpen(false)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={selectedCatalogIds.size === 0 || assigningLoading}
+                onClick={handleAssignSkills}
+                className="bg-[#111111] hover:bg-black text-white text-xs px-4"
+              >
+                {assigningLoading
+                  ? "Adding..."
+                  : `Add to Class (${selectedCatalogIds.size})`}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ============================================================ */}
+      {/* DIALOG: View Full Skill Information                          */}
+      {/* ============================================================ */}
+      <ViewSkillInfoModal
+        skill={modalSkill}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        canEditRubric={false}
+      />
+
+      {/* ============================================================ */}
+      {/* DIALOG: Confirm Unassign Skill                               */}
+      {/* ============================================================ */}
+      <ConfirmDialog
+        isOpen={!!skillToUnassign}
+        title="Remove Skill from Class"
+        description={
+          skillToUnassign
+            ? `Are you sure you want to remove "${skillToUnassign.name}" (${skillToUnassign.code}) from this class? Questions mapped to this skill will no longer be tracked under this competency.`
+            : ""
+        }
+        confirmLabel={unassigningLoading ? "Removing..." : "Remove Skill"}
+        tone="danger"
+        onConfirm={handleConfirmUnassign}
+        onCancel={() => setSkillToUnassign(null)}
+      />
     </div>
   );
 }

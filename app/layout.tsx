@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: "Course questions answered from class materials with clear source citations.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
