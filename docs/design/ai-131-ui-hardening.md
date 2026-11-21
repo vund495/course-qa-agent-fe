@@ -112,3 +112,75 @@ Do not mark review, CI, or manual-test checklist items complete without evidence
 * Verification evidence: `testreport/` scripts (`verify-phase-e.mjs`,
   `verify-modal-a11y.mjs`, `verify-mobile-nav.mjs`, `verify-chat-ux.mjs`, …)
 * Jira: https://ai03.atlassian.net/browse/AI-131
+
+---
+
+## Appendix A — Header flush under the course tab band (follow-up, MR !154)
+
+### A.1 Problem
+
+`WorkspacePageHeader` applied its two bleeds through a single `bleed` flag:
+
+```tsx
+bleed && "-mx-6",
+bleed && "-mt-8",
+```
+
+`-mt-8` is what pulls the header up over `PageContainer`'s `pt-8`, so the header
+sits flush under the navy `CourseTabs` band. Pages that carried a standalone
+back-link above the header had to pass `bleed={false}` — otherwise the header
+would slide over that link — and that also removed `-mx-6`. Result: those
+headers were 24px narrower than every other page, and the quiz detail page
+(`quiz-results.tsx`) passed no flag at all, so `-mt-8` pulled the header over
+the back-link and left a grey gap under the tab band.
+
+### A.2 Decision — back link moves inside the header
+
+The back link is now a chevron rendered **inside** the header, beside the title:
+
+```tsx
+backLink?: { href: string; label: string };
+```
+
+```text
++----------------------------------------------------------+
+| [<] Quiz title                        [Approve] [Results] |
+|     Awaiting your review                                  |
++----------------------------------------------------------+
+```
+
+Because the header is once again the first element on the page, `bleedTop`
+stays `true` and the header keeps its full-bleed top. The chevron is 28×28
+(`size-7`), `text-white/85`, `hover:bg-white/15`, and carries
+`aria-label="Back to <label>"` plus a matching `title`.
+
+### A.3 `bleed` and `bleedTop` are now independent
+
+| Prop | Default | Meaning | When to set `false` |
+|---|---|---|---|
+| `bleed` | `true` | `-mx-6` — bleed to the container's horizontal gutters | Container has no page gutters |
+| `bleedTop` | `true` | `-mt-8` — pull up over the container's top padding | Header is **not** the first element on the page |
+
+Splitting them is what lets a header keep its width while something else sits
+above it, and it removes the reason anyone would turn the top bleed off.
+
+### A.4 Files changed
+
+| File | Change |
+|---|---|
+| `components/shared/WorkspacePageHeader.tsx` | Added `backLink`; split `bleed` / `bleedTop` |
+| `components/shared/ClassPageHeader.tsx` | Passes `backLink`, `bleed`, `bleedTop` through |
+| `features/quizzes/quiz-review.tsx` | Standalone back-link removed; `backLink` passed |
+| `features/quizzes/quiz-results.tsx` | Standalone back-link removed; `backLink` passed |
+| `features/quizzes/student-quiz-attempts.tsx` | Standalone back-link removed; `backLink` passed |
+| `features/quizzes/student-quiz-result.tsx` | Standalone back-link and duplicate "All attempts" action removed |
+| `components/shared/AppLayoutShell.tsx` | Non-workspace scroll area gets `overflow-x-hidden` |
+
+### A.5 Acceptance
+
+1. On quiz detail, quiz results, student attempts and student result, the header
+   touches the tab band with no grey gap.
+2. Header width matches every other class page (no 24px inset).
+3. The chevron returns to the same target the old link did.
+4. Keyboard: the chevron is reachable by Tab and shows a focus ring.
+5. Pages without a back target render unchanged.
