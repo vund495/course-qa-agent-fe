@@ -26,6 +26,7 @@ import {
   formatDateTime,
   formatPercentage,
   formatScore,
+  formatScoreOutOfTen,
   questionTypeLabel,
 } from "./quiz-result-format";
 
@@ -134,24 +135,11 @@ export function StudentQuizResult({
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href={`/student/quizzes/${quizId}`}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"
-        >
-          <ArrowLeft className="size-4" /> All attempts
-        </Link>
-      </div>
-
       <WorkspacePageHeader
+        backLink={{ href: `/student/quizzes/${quizId}`, label: "All attempts" }}
         title={result.quiz_title}
         subtitle={`Submitted ${formatDateTime(result.submitted_at)}`}
         badge={result.official ? <OfficialBadge /> : undefined}
-        actions={
-          <Button asChild variant="outline">
-            <Link href={`/student/quizzes/${quizId}`}>All attempts</Link>
-          </Button>
-        }
       />
 
       <Card>
@@ -163,11 +151,8 @@ export function StudentQuizResult({
             )}
           >
             <p className="text-4xl font-semibold tracking-tight">
-              {formatScore(result.total_score)}
-              <span className="text-lg font-normal opacity-70">
-                {" "}
-                / {formatScore(result.max_score)}
-              </span>
+              {formatScoreOutOfTen(result.total_score, result.max_score)}
+              <span className="text-lg font-normal opacity-70"> / 10</span>
             </p>
             <p className="mt-1 text-sm font-medium opacity-80">
               {formatPercentage(result.percentage)}
