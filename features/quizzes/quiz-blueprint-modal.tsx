@@ -126,6 +126,50 @@ export function QuizBlueprintModal({ open, classId, onClose }: QuizBlueprintModa
       .reduce((sum, c) => sum + c.available_in_bank, 0);
   }, [availability, selectedSkillIds, selectedLevels]);
 
+  // Per-(skill, level) bank counts, so a selection that cannot be filled is
+  // blocked before the backend rejects the whole generation.
+  const bankCounts = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const cell of availability?.cells ?? []) {
+      counts.set(`${cell.skill_id}:${cell.difficulty.toUpperCase()}`, cell.available_in_bank);
+    }
+    return counts;
+  }, [availability]);
+
+  const countFor = React.useCallback(
+    (skillId: string, level: string) => bankCounts.get(`${skillId}:${level.toUpperCase()}`) ?? 0,
+    [bankCounts],
+  );
+
+  /** A skill can be picked only when every selected level has enough questions. */
+  const skillIsShort = React.useCallback(
+    (skillId: string) =>
+      selectedLevels.some((level) => countFor(skillId, level) < questionsPerLevel),
+    [selectedLevels, countFor, questionsPerLevel],
+  );
+
+  /** A level can be picked only when every selected skill has enough questions. */
+  const levelIsShort = React.useCallback(
+    (level: string) =>
+      selectedSkillIds.some((skillId) => countFor(skillId, level) < questionsPerLevel),
+    [selectedSkillIds, countFor, questionsPerLevel],
+  );
+
+  /** Cells in the current selection that the bank cannot fill. */
+  const shortCells = React.useMemo(() => {
+    const short: { skillCode: string; level: string; available: number }[] = [];
+    for (const skillId of selectedSkillIds) {
+      const skill = skills.find((s) => s.id === skillId);
+      for (const level of selectedLevels) {
+        const available = countFor(skillId, level);
+        if (available < questionsPerLevel) {
+          short.push({ skillCode: skill?.code ?? skillId, level, available });
+        }
+      }
+    }
+    return short;
+  }, [selectedSkillIds, selectedLevels, skills, countFor, questionsPerLevel]);
+
   const toggleSkill = (skillId: string) => {
     setSelectedSkillIds((prev) =>
       prev.includes(skillId) ? prev.filter((id) => id !== skillId) : [...prev, skillId]
@@ -133,7 +177,7 @@ export function QuizBlueprintModal({ open, classId, onClose }: QuizBlueprintModa
   };
 
   const selectAllSkills = () => {
-    setSelectedSkillIds(skills.map((s) => s.id));
+    setSelectedSkillIds(skills.filter((s) => !skillIsShort(s.id)).map((s) => s.id));
   };
 
   const clearAllSkills = () => {
@@ -158,6 +202,17 @@ export function QuizBlueprintModal({ open, classId, onClose }: QuizBlueprintModa
     }
     if (selectedLevels.length === 0) {
       setError("Please select at least one proficiency level.");
+      return;
+    }
+    if (shortCells.length > 0) {
+      const preview = shortCells
+        .slice(0, 3)
+        .map((c) => `${c.skillCode} · ${c.level} (${c.available}/${questionsPerLevel})`)
+        .join(", ");
+      setError(
+        `Not enough questions in the bank for: ${preview}${shortCells.length > 3 ? `, +${shortCells.length - 3} more` : ""}. ` +
+          "Deselect those skills or levels, or lower questions per level.",
+      );
       return;
     }
 
@@ -329,15 +384,24 @@ export function QuizBlueprintModal({ open, classId, onClose }: QuizBlueprintModa
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
                 {skills.map((skill) => {
                   const selected = selectedSkillIds.includes(skill.id);
+                  const short = skillIsShort(skill.id);
                   return (
                     <button
                       key={skill.id}
                       type="button"
+                      disabled={short && !selected}
+                      title={
+                        short
+                          ? `Not enough questions in the bank for every selected level at ${questionsPerLevel} per level.`
+                          : undefined
+                      }
                       onClick={() => toggleSkill(skill.id)}
                       className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition ${
-                        selected
-                          ? "bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-200"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
+                        short && !selected
+                          ? "bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed"
+                          : selected
+                            ? "bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-200"
+                            : "bg-white border-slate-200 hover:bg-slate-50"
                       }`}
                     >
                       <input
@@ -379,15 +443,24 @@ export function QuizBlueprintModal({ open, classId, onClose }: QuizBlueprintModa
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {DREYFUS_LEVELS.map((lvl) => {
                   const active = selectedLevels.includes(lvl.key);
+                  const short = levelIsShort(lvl.key);
                   return (
                     <button
                       key={lvl.key}
                       type="button"
+                      disabled={short && !active}
+                      title={
+                        short
+                          ? `At least one selected skill has fewer than ${questionsPerLevel} questions at this level.`
+                          : undefined
+                      }
                       onClick={() => toggleLevel(lvl.key)}
                       className={`p-2.5 rounded-lg border text-left transition flex flex-col justify-between ${
-                        active
-                          ? `${lvl.bg} font-semibold ring-1 ring-offset-1`
-                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 opacity-60"
+                        short && !active
+                          ? "bg-slate-50 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed"
+                          : active
+                            ? `${lvl.bg} font-semibold ring-1 ring-offset-1`
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 opacity-60"
                       }`}
                     >
                       <div className="flex items-center justify-between w-full mb-1">
@@ -446,16 +519,30 @@ export function QuizBlueprintModal({ open, classId, onClose }: QuizBlueprintModa
               </div>
 
               {/* Bank availability check */}
-              <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
-                <div className="flex items-center gap-1.5">
-                  <Database className="size-3.5 text-slate-400" />
-                  <span>Available in Question Bank:</span>
-                  <span className="font-semibold text-slate-800">{matchingBankCount} items</span>
+              <div className="pt-2 border-t border-slate-200/80 space-y-1.5 text-xs text-slate-600">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Database className="size-3.5 text-slate-400" />
+                    <span>Available in Question Bank:</span>
+                    <span className="font-semibold text-slate-800">{matchingBankCount} items</span>
+                  </div>
+                  {matchingBankCount < totalQuestions && (
+                    <span className="rounded border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                      Short by {totalQuestions - matchingBankCount} questions
+                    </span>
+                  )}
                 </div>
-                {matchingBankCount < totalQuestions && (
-                  <span className="rounded border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
-                    Short by {totalQuestions - matchingBankCount} questions
-                  </span>
+                {shortCells.length > 0 && (
+                  <p className="text-[11px] leading-relaxed text-rose-700">
+                    Cannot fill {shortCells.length} cell
+                    {shortCells.length === 1 ? "" : "s"} at {questionsPerLevel} per level:{" "}
+                    {shortCells
+                      .slice(0, 3)
+                      .map((c) => `${c.skillCode} · ${c.level} (${c.available})`)
+                      .join(", ")}
+                    {shortCells.length > 3 ? `, +${shortCells.length - 3} more` : ""}. Deselect
+                    them or lower questions per level.
+                  </p>
                 )}
               </div>
             </div>
